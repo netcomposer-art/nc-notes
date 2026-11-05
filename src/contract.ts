@@ -44,7 +44,11 @@ export interface NotesRoute {
   octave?: number;
 }
 
-/** Why an `off` was sent. */
+/**
+ * Why an `off` was sent. 'restart' with `atBeat`: the source resends from that beat (a change heard on the next beat,
+ * CALLIOPE): what waits from there is dropped and comes again; notes already sounding keep their length, as a host's
+ * own generator lets them ring when its settings change.
+ */
 export type NotesOffReason = 'stop' | 'removed' | 'off' | 'restart';
 
 export type NotesMessage =

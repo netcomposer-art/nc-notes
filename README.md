@@ -39,6 +39,11 @@ const bass = routeRole(events, 'root', { octave: 1 });
 Call `window(toBeat)` again with a later beat as your clock moves (a little ahead of it, like any scheduler). Each
 call continues where the last one stopped.
 
+`gen.clone()` is a copy that goes on exactly where `gen` is. A host that sends ahead keeps clones as snapshots, so a
+change can be played from a beat it has already sent: restore the snapshot, `window(changeBeat)` with the old
+settings, change, `window(ahead)` again. The events from the change beat on keep their ids where nothing changed
+(CALLIOPE resends from the change point this way, after an `off` from that beat).
+
 ### Settings
 
 `GeneratorSettings` uses ASTRID's field names: `mode` (`off`, `single`, `chord`, `random`), `note`, `octave`,
@@ -82,7 +87,8 @@ How a source (CALLIOPE) hands notes to an instrument through the Studio, the sam
 - **Idempotent.** Every event has an `id` (`noteId(source, run, role, hit, index)`); a resend of the same event carries
   the same id and is ignored, so a target switched back on, or a reloaded frame, never plays a note twice.
 - **Note-offs.** A Stop, a target removed or switched off, or a source going away sends `off`: the instrument drops
-  that source's events it hasn't started and releases its sounding notes. Nothing hangs.
+  that source's events it hasn't started and releases its sounding notes. Nothing hangs. A resend (`reason: 'restart'`,
+  `atBeat`: a change heard on the next beat) drops what waits from that beat and lets notes already sounding ring.
 - **Routes.** `routes` lists the sources playing an instrument now (role `chord`, `root` or `top`, and an octave). While
   any does, the instrument's own generator stands aside.
 
