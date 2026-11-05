@@ -1,0 +1,60 @@
+{
+  "name": "@netcomposer/nc-notes",
+  "version": "0.1.0",
+  "description": "NetComposer's Note Generator: chords, progressions, chord pads, arp and Euclid rhythms as timed note events. Pure TypeScript, no DOM or Web Audio.",
+  "license": "MIT",
+  "author": {
+    "name": "Peter Semmelhack",
+    "url": "https://psem.me/"
+  },
+  "homepage": "https://github.com/netcomposer-art/nc-notes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netcomposer-art/nc-notes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/netcomposer-art/nc-notes/issues"
+  },
+  "keywords": [
+    "music",
+    "chords",
+    "chord-progressions",
+    "arpeggiator",
+    "euclidean-rhythm",
+    "sequencer",
+    "midi",
+    "netcomposer"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE",
+    "AUTHORS"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/test/*.test.js",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
