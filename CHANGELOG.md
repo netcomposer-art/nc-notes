@@ -11,6 +11,9 @@ golden test still replays ASTRID's 255 streams exactly). The contract stays v1: 
   cuts without a gap, any other `off` ends the chord. `followPitch(root, { low, transpose })` places a root's pitch
   class in the octave from `low` and adds the transpose's whole octaves (Bass: E1 to D#2; NYX: a pad's own note −6 …
   +5).
+- `routeRole` moved to `route.ts` (still exported from `events.ts` and the index): the contract no longer imports the
+  chord tables, so an instrument that imports `follow.ts` or `contract.ts` directly bundles only those (OLIVE Bass:
+  about 3 kB gz less).
 - `ChordTrack.cut(atBeat)` (a resend from that beat: the chord before it holds, no gap) and `ChordTrack.points()`.
 - Contract: `NotesRoute.transpose` (optional, whole semitones, at most ±48: what the source moved this target's notes
   by, CALLIOPE's Octave × 12). A receiver from before ignores it. `runOfId(id)` reads a `noteId`'s run.

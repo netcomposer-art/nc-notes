@@ -14,7 +14,8 @@
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
  */
-import { routeRole, type NoteEvent, type NoteRole, type TargetRole } from './events.js';
+import type { NoteEvent, NoteRole, TargetRole } from './events.js';
+import { routeRole } from './route.js';
 
 /** The contract's version. A receiver ignores messages from a newer major version. */
 export const NOTES_VERSION = 1;

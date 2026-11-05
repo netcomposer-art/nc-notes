@@ -20,7 +20,7 @@ nc-notes was created by [Peter Semmelhack](https://psem.me/).
 | `key-arp.ts` | The keyboard arp's pure parts: `HeldArp` (held and latched keys), `arpPattern`, `arpStepAt`, locked sequences (`sanitizeSequence`, `retuneSequence`). |
 | `rates.ts` | Generator and arp rates: straight, dotted and triplet values of `interval`. |
 | `follow.ts` | `PitchFollower` and `followPitch`: an instrument that keeps its own rhythm and takes the pitch (OLIVE Bass, NYX). |
-| `events.ts` | `NoteEvent`, `hitEvents`, `placeHit`, `routeRole`. |
+| `events.ts` | `NoteEvent`, `hitEvents`, `placeHit`, `routeRole` (from `route.ts`, which needs no chord tables). |
 | `random.ts` | `seededRandom(seed)`. |
 
 ## Use
