@@ -19,7 +19,8 @@ nc-notes was created by [Peter Semmelhack](https://psem.me/).
 | `chord-pad-timing.ts` | When a pad click lands while playing (the next beat whose notes aren't queued yet). |
 | `key-arp.ts` | The keyboard arp's pure parts: `HeldArp` (held and latched keys), `arpPattern`, `arpStepAt`, locked sequences (`sanitizeSequence`, `retuneSequence`). |
 | `rates.ts` | Generator and arp rates: straight, dotted and triplet values of `interval`. |
-| `events.ts` | `NoteEvent`, `hitEvents`, `placeHit`, `routeRole`. |
+| `follow.ts` | `PitchFollower` and `followPitch`: an instrument that keeps its own rhythm and takes the pitch (OLIVE Bass, NYX). |
+| `events.ts` | `NoteEvent`, `hitEvents`, `placeHit`, `routeRole` (from `route.ts`, which needs no chord tables). |
 | `random.ts` | `seededRandom(seed)`. |
 
 ## Use
@@ -155,6 +156,19 @@ nc-notes decides what to play and when, in beats. ASTRID's voice engine (`lib/sy
 - **Voices:** envelopes, voice stealing, drift, the sound. Situation's older modes (melody, progression, event) and
   the semantic layer (register, duration) also stay there; they are not generator modes.
 
+### Pitch only: OLIVE Bass and NYX (0.4.0)
+
+Some instruments keep their own rhythm and take only the pitch from a source (Peter, 2026-11-05). OLIVE Bass plays its
+own steps, accents and slides, and each step's pitch is the root of the chord sounding at that step's beat (its OCT
+lane still moves it); NYX plays its own pattern, and the pads set to follow are retuned to that root at each hit.
+
+Such an instrument takes the contract's messages into a `PitchFollower` instead of a `NotesInbox`: the source routes it
+the `root` role, the follower keeps the chords as a timeline, and the instrument looks up `rootAt(beat)` for each of its
+own steps when it schedules it (or posts `points()` to its audio thread and looks them up there: sample-accurate, the
+same beat its step plays on). `followPitch(root, { low, transpose })` places the root: its pitch class in the octave
+from `low`, plus the whole octaves of the route's `transpose` (CALLIOPE's Octave). A Studio hands a pitch follower the
+hit in effect now as well as what is coming when it is switched on, so it has a pitch at once.
+
 ## Proof it plays what ASTRID played
 
 `test/golden/astrid-51adba6.json` holds 255 note streams (12,754 notes) recorded from ASTRID's own scheduler before
@@ -170,7 +184,7 @@ sequences) through its engine.
   vendored in `lib/nc-notes`, driving its built-in Note Generator.
 - **NetComposer Studio** ([netcomposer-art/nc-studio](https://github.com/netcomposer-art/nc-studio)): vendored in
   `vendor/nc-notes`; its notes bus carries these events from a source to each target's frame.
-- **CALLIOPE** (planned): the Studio's generator module, sending these events to Synth, Bass and Sampler.
+- **CALLIOPE** ([netcomposer-art/calliope](https://github.com/netcomposer-art/calliope)): the Studio's generator module, playing Synth (notes), Bass and Sampler (pitch only).
 
 ## Develop
 

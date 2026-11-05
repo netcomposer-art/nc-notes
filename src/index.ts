@@ -16,3 +16,4 @@ export * from './events.js';
 export * from './generator.js';
 export * from './contract.js';
 export * from './chord-track.js';
+export * from './follow.js';
