@@ -13,6 +13,9 @@
  *  - Runs: an event from a newer run of that source (a Play) replaces the timeline; an older run's is ignored.
  *  - `off` with reason 'restart' and `atBeat` (a change heard on the next beat, resent from there) cuts the timeline
  *    there without a gap; any other `off` ends the chord (from `atBeat`, else at once and everything).
+ *  - A Stop (`off` 'stop' with no beat: the clock stopped) keeps the timeline: an instrument whose clock stops a
+ *    moment after the source heard it (a step already on its way) still plays the root at that step's beat, never its
+ *    own note. The next run (a Play) replaces it.
  *  - With no chord in effect (none yet, or after an off) rootAt() is null: the instrument plays its own pitch.
  */
 import { ChordTrack } from './chord-track.js';
@@ -72,6 +75,8 @@ export class PitchFollower {
     const followed = this.route?.source;
     if (m.source !== followed) { this.stats.ignored++; return m; }
     if (m.kind === 'off') {
+      // A Stop keeps the timeline (see the file comment); the next run replaces it.
+      if (m.reason === 'stop' && m.atBeat === undefined) return m;
       if (m.reason === 'restart' && m.atBeat !== undefined) this.track.cut(m.atBeat);
       else if (m.atBeat !== undefined) this.track.off(m.atBeat);
       else this.track.off();
@@ -102,7 +107,8 @@ export class PitchFollower {
 
   /** The timeline from the change in effect at `fromBeat` on (empty with no source). */
   points(fromBeat = Number.NEGATIVE_INFINITY): FollowPoint[] {
-    return this.active ? this.track.points(fromBeat) : [];
+    if (!this.active) return [];
+    return this.track.points(fromBeat);
   }
 
   /** Forget changes that were followed by another before `beat`. */
