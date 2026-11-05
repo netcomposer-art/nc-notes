@@ -21,6 +21,8 @@ export const NOTES_VERSION = 1;
 
 /** The most events one `notes` message may carry. */
 export const MAX_EVENTS_PER_MESSAGE = 1024;
+/** The most a route's transpose may move notes, in semitones (four octaves either way). */
+export const MAX_TRANSPOSE = 48;
 /** The longest source id, event id or name, in characters. */
 export const MAX_ID_LENGTH = 128;
 
@@ -42,6 +44,12 @@ export interface NotesRoute {
   name: string;
   role: TargetRole;
   octave?: number;
+  /**
+   * Semitones the source moves every note it sends this target (CALLIOPE's per-target Octave × 12), already in the
+   * notes and roots it sends. Optional (0 when absent; added in 0.4.0, a v1 receiver that doesn't know it is
+   * unaffected). A pitch follower (follow.ts) reads it to keep the octave choice apart from where it places a root.
+   */
+  transpose?: number;
 }
 
 /**
@@ -63,6 +71,7 @@ export type NotesMessage =
   | { v: typeof NOTES_VERSION; kind: 'routes'; routes: NotesRoute[] };
 
 /** The id of event `index` of hit `hit`, played in `role`, in run `run` of `source`. */
+// The id's parts are joined with '|'; runOfId() reads the run back from the end (a source id may hold anything).
 export function noteId(source: string, run: number, role: NoteRole, hit: number, index: number): string {
   return `${source}|${run}|${role}|${hit}|${index}`;
 }
@@ -80,6 +89,14 @@ export function routeForTarget(source: string, run: number, events: readonly Not
     counts.set(e.hit, index + 1);
     return { ...e, id: noteId(source, run, e.role, e.hit, index), source };
   });
+}
+
+/** The run an id from noteId() belongs to, or null when it isn't one. */
+export function runOfId(id: string): number | null {
+  const parts = id.split('|');
+  if (parts.length < 5) return null;
+  const run = Number(parts[parts.length - 4]);
+  return Number.isInteger(run) ? run : null;
 }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
@@ -131,6 +148,7 @@ export function notesMessageError(x: unknown): string | null {
       if (!isObject(r) || !isId(r.source) || typeof r.name !== 'string' || r.name.length > MAX_ID_LENGTH) return 'bad route';
       if (!TARGET_ROLES.includes(r.role as TargetRole)) return 'bad route role';
       if (r.octave !== undefined && !(Number.isInteger(r.octave) && (r.octave as number) >= -1 && (r.octave as number) <= 9)) return 'bad route octave';
+      if (r.transpose !== undefined && !(Number.isInteger(r.transpose) && Math.abs(r.transpose as number) <= MAX_TRANSPOSE)) return 'bad route transpose';
     }
     return null;
   }
@@ -153,7 +171,11 @@ export function parseNotesMessage(x: unknown): NotesMessage | null {
   if (m.kind === 'off') return { v: NOTES_VERSION, kind: 'off', source: m.source, reason: m.reason, ...(m.atBeat === undefined ? {} : { atBeat: m.atBeat }) };
   return {
     v: NOTES_VERSION, kind: 'routes',
-    routes: m.routes.map(r => ({ source: r.source, name: r.name, role: r.role, ...(r.octave === undefined ? {} : { octave: r.octave }) })),
+    routes: m.routes.map(r => ({
+      source: r.source, name: r.name, role: r.role,
+      ...(r.octave === undefined ? {} : { octave: r.octave }),
+      ...(r.transpose === undefined ? {} : { transpose: r.transpose }),
+    })),
   };
 }
 

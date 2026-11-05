@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] - 2026-11-05
+
+For CALLIOPE (stage 4): OLIVE Bass and NYX keep their own rhythm and take the pitch. No change to any note stream (the
+golden test still replays ASTRID's 255 streams exactly). The contract stays v1: one new optional field.
+
+- `follow.ts`: `PitchFollower`, the receiving side for an instrument that takes only the pitch: it keeps the followed
+  source's chords as a timeline and answers `rootAt(beat)`; `points(fromBeat)` hands the timeline to an audio thread.
+  Follows the first route; a newer run replaces the timeline, an older run's events are ignored; `off` 'restart'
+  cuts without a gap, any other `off` ends the chord. `followPitch(root, { low, transpose })` places a root's pitch
+  class in the octave from `low` and adds the transpose's whole octaves (Bass: E1 to D#2; NYX: a pad's own note −6 …
+  +5).
+- `ChordTrack.cut(atBeat)` (a resend from that beat: the chord before it holds, no gap) and `ChordTrack.points()`.
+- Contract: `NotesRoute.transpose` (optional, whole semitones, at most ±48: what the source moved this target's notes
+  by, CALLIOPE's Octave × 12). A receiver from before ignores it. `runOfId(id)` reads a `noteId`'s run.
+
 ## [0.3.0] - 2026-11-04
 
 For CALLIOPE (stage 3): changes heard on the next beat. No change to any note stream (the golden test still replays
