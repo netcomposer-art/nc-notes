@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0] - 2026-11-04
+
+For CALLIOPE (stage 3): changes heard on the next beat. No change to any note stream (the golden test still replays
+ASTRID's 255 streams exactly).
+
+- `NoteGenerator.clone(options?)`: a copy that goes on exactly where the generator is (grid, step counter, progression
+  place and pending jump, voicing memory, bar style position, event serials). A host keeps copies as snapshots and plays
+  a change from a beat it has already sent: restore the snapshot, play up to the change beat, change, play on (same
+  ids for what didn't change, so the resend is safe). `options` may replace the settings source and random functions.
+- Contract (docs only, no shape change): an `off` with reason `'restart'` and `atBeat` is a resend from that beat:
+  receivers drop what waits from there; notes already sounding keep their length.
+
 ## [0.2.0] - 2026-11-04
 
 The notes contract and the Bass rule (CALLIOPE stage 2). No change to any note stream (the golden test still

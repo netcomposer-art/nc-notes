@@ -123,6 +123,26 @@ export class NoteGenerator {
     this.comp = freshComp(origin, join ? 0 : Math.floor(beat / bpb + 1e-9) * bpb);
     return origin;
   }
+  /**
+   * A copy that goes on exactly where this one is: the grid, the step counter, the progression's place and a pending
+   * jump, the voicing memory, the bar style's position and the event serials (so the same events get the same ids).
+   * A host keeps copies as snapshots to play a change from a beat already sent (CALLIOPE resends from the change point).
+   * `options` replace the settings source and the random functions (pass ones whose state was restored too);
+   * omitted, the copy shares this one's.
+   */
+  clone(options: NoteGeneratorOptions & { settings?: GeneratorSettings | (() => GeneratorSettings) } = {}): NoteGenerator {
+    const copy = new NoteGenerator(options.settings ?? this.read, {
+      random: options.random ?? this.random,
+      chordRandom: options.chordRandom ?? this.chordRandom,
+      beatsPerBar: options.beatsPerBar ?? this.bpb,
+    });
+    copy.step = this.step;
+    copy.grid = { ...this.grid };
+    copy.serial = this.serial;
+    const c = this.comp;
+    copy.comp = { ...c, jump: c.jump ? { ...c.jump } : null, last: c.last ? [...c.last] : null, bar: { ...c.bar } };
+    return copy;
+  }
   /** Put the grid back to beat 0 (the step counter keeps counting). */
   resetGrid(): void { this.grid = { origin: 0, index: 0, interval: this.settings.interval }; }
   /** Beat of the next grid step. */

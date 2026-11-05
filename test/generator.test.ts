@@ -121,3 +121,27 @@ test('pure: no DOM, Web Audio, timers or clocks in src/', () => {
       assert.ok(!new RegExp(`\\b${word.replace('.', '\\.')}${word.endsWith('.') ? '' : '\\b'}`).test(code), `${f} uses ${word}`);
   }
 });
+
+test('clone(): a copy goes on exactly as the original would, and neither disturbs the other', () => {
+  for (const patch of [
+    { mode: 'chord', chordProgression: 'pop-1-5-6-4', chordStyle: 'charleston', voiceLeading: 'smooth' },
+    { mode: 'chord', arp: 'up-down', arpOctaves: 2, interval: 8 },
+    { mode: 'chord', chordStyle: 'push', chordProgression: 'pop-1-5-6-4', progressionBars: 1 },
+    { mode: 'random', interval: 16 },
+  ] as Partial<GeneratorSettings>[]) {
+    const settings = { ...DEFAULT_GENERATOR_SETTINGS, ...patch } as GeneratorSettings;
+    const a = new NoteGenerator(settings, { random: seededRandom(3), chordRandom: seededRandom(4) });
+    const ref = new NoteGenerator(settings, { random: seededRandom(3), chordRandom: seededRandom(4) });
+    a.start(0); ref.start(0);
+    a.window(5.25); ref.window(5.25);
+    a.jumpToChord(2, 6); ref.jumpToChord(2, 6);
+    // The copy gets random functions in the same state as the original's (fresh seeds advanced alike).
+    const r1 = seededRandom(3), r2 = seededRandom(4);
+    const probe = new NoteGenerator(settings, { random: r1, chordRandom: r2 });
+    probe.start(0); probe.window(5.25); probe.jumpToChord(2, 6);
+    const b = a.clone({ random: r1, chordRandom: r2 });
+    const expected = ref.window(20);
+    assert.deepEqual(b.window(20), expected, `clone of ${JSON.stringify(patch)}`);
+    assert.deepEqual(a.window(20), expected, 'the original is undisturbed');
+  }
+});
