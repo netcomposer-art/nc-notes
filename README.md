@@ -72,6 +72,41 @@ chord's root once (in a chosen octave), or each chord's top note.
 A host that maps beats to seconds the way ASTRID does should compute a note's length as
 `(time(startBeat + spanBeats) − time(startBeat)) × gate`: that is ASTRID's arithmetic, bit for bit.
 
+### The notes contract (v1)
+
+How a source (CALLIOPE) hands notes to an instrument through the Studio, the same way for every module
+(`src/contract.ts`):
+
+- **Beats, sent ahead.** Events are beats on the Studio clock, sent a little ahead of time (a lookahead window), never
+  "play now". The instrument maps each beat to its own audio time with the shared clock mapper when it schedules it.
+- **Idempotent.** Every event has an `id` (`noteId(source, run, role, hit, index)`); a resend of the same event carries
+  the same id and is ignored, so a target switched back on, or a reloaded frame, never plays a note twice.
+- **Note-offs.** A Stop, a target removed or switched off, or a source going away sends `off`: the instrument drops
+  that source's events it hasn't started and releases its sounding notes. Nothing hangs.
+- **Routes.** `routes` lists the sources playing an instrument now (role `chord`, `root` or `top`, and an octave). While
+  any does, the instrument's own generator stands aside.
+
+```ts
+type NotesMessage =
+  | { v: 1; kind: 'notes'; source: string; events: WireNote[] }       // WireNote = NoteEvent + { id, source }
+  | { v: 1; kind: 'off'; source: string; reason: 'stop' | 'removed' | 'off' | 'restart'; atBeat?: number }
+  | { v: 1; kind: 'routes'; routes: { source: string; name: string; role: 'chord' | 'root' | 'top'; octave?: number }[] };
+```
+
+- Sender: `routeForTarget(source, run, events, role, { octave })` (routeRole plus ids), `notesMessage`, `offMessage`,
+  `routesMessage`.
+- Receiver: `parseNotesMessage(x)` checks a message and copies it (null when invalid; `notesMessageError` says why),
+  and `NotesInbox` keeps what is waiting in start order: `receive(msg)`, `take(due)`, `off(source, atBeat)`,
+  `prune(beat)`, `active` (some source plays it).
+
+### The Bass rule
+
+A Bass under CALLIOPE keeps its own rhythm and takes the pitch at each of its steps: the root of whatever chord is
+sounding then (Peter, 2026-11-04). `ChordTrack` follows a source's stream (`add(events)`, `off(atBeat)`) and answers
+`chordAt(beat)` (the last hit started at or before the beat: its root, notes, and whether they still sound) and
+`pitchAt(beat, { octave })`. A gap between chords keeps the last chord's harmony; an `off` ends it. `chordAt(events,
+beat)` and `pitchAt(events, beat)` do the same on a list.
+
 ### Step by step (how ASTRID drives it)
 
 ASTRID keeps its own scheduler (20 ms tick, 150 ms lookahead, audio-time checks) and asks the generator one step at
@@ -127,6 +162,8 @@ sequences) through its engine.
 
 - **ASTRID** (NetComposer's synth, [psemmelhack/NetComposer-Synth](https://github.com/psemmelhack/NetComposer-Synth)):
   vendored in `lib/nc-notes`, driving its built-in Note Generator.
+- **NetComposer Studio** ([netcomposer-art/nc-studio](https://github.com/netcomposer-art/nc-studio)): vendored in
+  `vendor/nc-notes`; its notes bus carries these events from a source to each target's frame.
 - **CALLIOPE** (planned): the Studio's generator module, sending these events to Synth, Bass and Sampler.
 
 ## Develop

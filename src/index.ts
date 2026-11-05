@@ -14,3 +14,5 @@ export * from './key-arp.js';
 export * from './random.js';
 export * from './events.js';
 export * from './generator.js';
+export * from './contract.js';
+export * from './chord-track.js';

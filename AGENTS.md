@@ -27,6 +27,8 @@ CI runs `npm ci`, typecheck, test, build on Node 20, 22 and 24.
 - **Deterministic:** never call `Math.random` directly in the generator; use the `random` / `chordRandom` it is given.
 - **The notes are the reference:** `test/golden/astrid-51adba6.json` is what ASTRID played before the move. A change
   that alters any stream needs Peter's yes, a regenerated fixture and a CHANGELOG line saying what changed and why.
+- **The notes contract is shared:** `src/contract.ts` (v1) is what every module sends and takes. A change that a v1
+  receiver would read differently bumps `NOTES_VERSION`; new optional fields don't.
 - **Old saves load:** ids (chords, progressions, arp orders and their numbers, styles) are never renamed or reused.
 - JSDoc on new exports, and a test for every behaviour change. No new runtime dependencies.
 - **Vendoring:** apps copy this repo (ASTRID: `lib/nc-notes`, sha256-pinned in its `VENDORED.md`) at a pinned commit.
