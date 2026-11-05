@@ -13,9 +13,9 @@
  *  - Runs: an event from a newer run of that source (a Play) replaces the timeline; an older run's is ignored.
  *  - `off` with reason 'restart' and `atBeat` (a change heard on the next beat, resent from there) cuts the timeline
  *    there without a gap; any other `off` ends the chord (from `atBeat`, else at once and everything).
- *  - A Stop (`off` 'stop' with no beat: the clock stopped) keeps the chord that was in effect: an instrument whose
- *    clock stops a moment after the source heard it (a step already on its way) still plays that root, never its own
- *    note. The next run (a Play) replaces it.
+ *  - A Stop (`off` 'stop' with no beat: the clock stopped) keeps the timeline: an instrument whose clock stops a
+ *    moment after the source heard it (a step already on its way) still plays the root at that step's beat, never its
+ *    own note. The next run (a Play) replaces it.
  *  - With no chord in effect (none yet, or after an off) rootAt() is null: the instrument plays its own pitch.
  */
 import { ChordTrack } from './chord-track.js';
@@ -49,8 +49,6 @@ export class PitchFollower {
   private track = new ChordTrack();
   private run: number | null = null;
   private current: NotesRoute[] = [];
-  /** After a Stop: the root that was in effect (for any beat, until the next run), or null. */
-  private held: number | null = null;
   /** Bumped on every change to the timeline, so a host posts it on only when it changed. */
   private serial = 0;
   readonly stats = { accepted: 0, ignored: 0, invalid: 0 };
@@ -77,14 +75,8 @@ export class PitchFollower {
     const followed = this.route?.source;
     if (m.source !== followed) { this.stats.ignored++; return m; }
     if (m.kind === 'off') {
-      if (m.reason === 'stop' && m.atBeat === undefined) {
-        const last = this.track.points().at(-1);
-        this.held = last?.root ?? this.held;
-        this.track = new ChordTrack();
-        this.serial++;
-        return m;
-      }
-      this.held = null;
+      // A Stop keeps the timeline (see the file comment); the next run replaces it.
+      if (m.reason === 'stop' && m.atBeat === undefined) return m;
       if (m.reason === 'restart' && m.atBeat !== undefined) this.track.cut(m.atBeat);
       else if (m.atBeat !== undefined) this.track.off(m.atBeat);
       else this.track.off();
@@ -98,7 +90,6 @@ export class PitchFollower {
       if (run !== null && (this.run === null || run > this.run)) {
         this.track = new ChordTrack();
         this.run = run;
-        this.held = null;
       }
       this.track.add([e]);
       this.stats.accepted++;
@@ -111,14 +102,12 @@ export class PitchFollower {
   /** The root of the chord in effect at `beat` (MIDI as sent), or null: no chord, the instrument's own pitch. */
   rootAt(beat: number): number | null {
     if (!this.active) return null;
-    if (this.held !== null && this.track.size === 0) return this.held;
     return this.track.chordAt(beat)?.root ?? null;
   }
 
   /** The timeline from the change in effect at `fromBeat` on (empty with no source). */
   points(fromBeat = Number.NEGATIVE_INFINITY): FollowPoint[] {
     if (!this.active) return [];
-    if (this.held !== null && this.track.size === 0) return [{ beat: Number.NEGATIVE_INFINITY, root: this.held }];
     return this.track.points(fromBeat);
   }
 
@@ -131,7 +120,6 @@ export class PitchFollower {
   reset(): void {
     this.track = new ChordTrack();
     this.run = null;
-    this.held = null;
     this.serial++;
   }
 }

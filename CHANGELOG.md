@@ -2,10 +2,10 @@
 
 ## [0.4.1] - 2026-11-05
 
-- `PitchFollower`: a Stop (`off` 'stop' with no beat) holds the root that was in effect, at any beat, until the next
-  run (or an off for the target, or a new route). An instrument's clock stops a moment after the source hears it: a
-  Bass step already on its way at the Stop played its own note; now it plays that root. Found by nc-studio's
-  pitch-timing test.
+- `PitchFollower`: a Stop (`off` 'stop' with no beat) keeps the timeline until the next run (an off for the target
+  or a new route still ends it). An instrument's clock stops a moment after the source hears it: a Bass step already
+  on its way at the Stop played its own note; now it plays the root at its beat. Found by nc-studio's pitch-timing
+  test.
 
 ## [0.4.0] - 2026-11-05
 

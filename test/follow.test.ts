@@ -85,13 +85,11 @@ test('PitchFollower: the root at each beat from the followed source only, across
   const resent = wired.filter(e => e.startBeat >= 8).map(e => ({ ...e, root: e.root + 2 }));
   f.receive(notesMessage('cal', resent));
   assert.equal(f.rootAt(8)! % 12, 11, 'the resend takes over from its own hit');
-  // Stop: the chord in effect holds (a step already on its way when the clock stopped plays it), at any beat, until
-  // the next run replaces the old timeline (its beats start again).
-  const atStop = f.rootAt(1000);
+  // Stop: the timeline stays (a step already on its way when the clock stopped plays its root), until the next run
+  // replaces it (its beats start again).
+  const atStop = f.rootAt(8);
   f.receive(offMessage('cal', 'stop'));
   assert.equal(f.rootAt(8), atStop);
-  assert.equal(f.rootAt(-5), atStop);
-  assert.deepEqual(f.points(), [{ beat: Number.NEGATIVE_INFINITY, root: atStop }]);
   f.receive(notesMessage('cal', routeForTarget('cal', 2, run({ ...chordSettings, chordProgression: 'pop-6-4-1-5' } as GeneratorSettings, 4), 'root')));
   assert.equal(f.rootAt(0)! % 12, 9, 'run 2 from beat 0: Am');
   // A late event of run 1 is ignored.
@@ -126,17 +124,20 @@ test('PitchFollower: a target switched off and on again (or a new Octave) gets t
   assert.equal(f.rootAt(7)! % 12, 7, 'pruning keeps the chord in effect');
 });
 
-test('PitchFollower: a Stop holds the root until the next run; an off for a target or a new route ends it', () => {
+test('PitchFollower: a Stop keeps the timeline until the next run; an off for a target or a new route ends it', () => {
   const f = new PitchFollower();
   f.receive(routesMessage([ROUTE]));
   f.receive(notesMessage('cal', routeForTarget('cal', 1, run(chordSettings, 8), 'root')));
+  const v = f.version;
   f.receive(offMessage('cal', 'stop'));
-  assert.equal(f.rootAt(0)! % 12, 7, 'G, the chord at the end');
+  assert.equal(f.version, v, 'nothing to send again');
+  assert.equal(f.rootAt(4.5)! % 12, 7, 'G, as before the Stop');
+  assert.equal(f.rootAt(0)! % 12, 0, 'C');
   f.receive(offMessage('cal', 'off'));
-  assert.equal(f.rootAt(0), null, 'switched off (or a new Octave): nothing held');
+  assert.equal(f.rootAt(4.5), null, 'switched off (or a new Octave): nothing');
   f.receive(notesMessage('cal', routeForTarget('cal', 2, run(chordSettings, 4), 'root')));
   f.receive(offMessage('cal', 'stop'));
   f.receive(routesMessage([]));
   f.receive(routesMessage([ROUTE]));
-  assert.equal(f.rootAt(0), null, 'routes gone and back: nothing held');
+  assert.equal(f.rootAt(0), null, 'routes gone and back: nothing kept');
 });
