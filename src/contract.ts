@@ -26,6 +26,10 @@ export const MAX_EVENTS_PER_MESSAGE = 1024;
 export const MAX_TRANSPOSE = 48;
 /** The longest source id, event id or name, in characters. */
 export const MAX_ID_LENGTH = 128;
+/** The most notes one `audition` message may carry. */
+export const MAX_AUDITION_NOTES = 64;
+/** The longest an audition note may be held, in seconds. */
+export const MAX_AUDITION_HOLD_SEC = 8;
 
 const TARGET_ROLES: readonly TargetRole[] = ['chord', 'root', 'top'];
 const NOTE_ROLES: readonly NoteRole[] = ['chord', 'root', 'top', 'arp', 'note'];
@@ -69,7 +73,15 @@ export type NotesMessage =
    */
   | { v: typeof NOTES_VERSION; kind: 'off'; source: string; reason: NotesOffReason; atBeat?: number }
   /** The sources playing this instrument now (empty: none; its own generator plays again). */
-  | { v: typeof NOTES_VERSION; kind: 'routes'; routes: NotesRoute[] };
+  | { v: typeof NOTES_VERSION; kind: 'routes'; routes: NotesRoute[] }
+  /**
+   * Play now, once (0.5.0: CALLIOPE's pad clicked while the Studio is stopped, so the player hears the chord; Peter,
+   * 2026-11-05). Not on the clock: each note starts now (plus its `offsetSec`) and is held `holdSec`, then released;
+   * `startBeat` and the gate are not read. A newer audition from the same source releases the one before; an `off`
+   * from the source releases it too. Routed per target like `notes` (role, octave, transpose). A receiver from
+   * before 0.5.0 drops it as an unknown kind, so nothing plays there and nothing else changes.
+   */
+  | { v: typeof NOTES_VERSION; kind: 'audition'; source: string; events: WireNote[]; holdSec: number };
 
 /** The id of event `index` of hit `hit`, played in `role`, in run `run` of `source`. */
 // The id's parts are joined with '|'; runOfId() reads the run back from the end (a source id may hold anything).
@@ -137,6 +149,18 @@ export function notesMessageError(x: unknown): string | null {
     }
     return null;
   }
+  if (x.kind === 'audition') {
+    if (!isId(x.source)) return 'bad source';
+    if (!Array.isArray(x.events)) return 'events must be a list';
+    if (x.events.length > MAX_AUDITION_NOTES) return `more than ${MAX_AUDITION_NOTES} notes`;
+    if (!finite(x.holdSec) || x.holdSec <= 0 || x.holdSec > MAX_AUDITION_HOLD_SEC) return `holdSec must be above 0, at most ${MAX_AUDITION_HOLD_SEC}`;
+    for (let i = 0; i < x.events.length; i++) {
+      const error = wireNoteError(x.events[i]);
+      if (error) return `event ${i}: ${error}`;
+      if ((x.events[i] as WireNote).source !== x.source) return `event ${i}: from another source`;
+    }
+    return null;
+  }
   if (x.kind === 'off') {
     if (!isId(x.source)) return 'bad source';
     if (!['stop', 'removed', 'off', 'restart'].includes(x.reason as string)) return 'bad reason';
@@ -169,6 +193,7 @@ export function parseNotesMessage(x: unknown): NotesMessage | null {
   if (notesMessageError(x)) return null;
   const m = x as NotesMessage;
   if (m.kind === 'notes') return { v: NOTES_VERSION, kind: 'notes', source: m.source, events: m.events.map(copyNote) };
+  if (m.kind === 'audition') return { v: NOTES_VERSION, kind: 'audition', source: m.source, events: m.events.map(copyNote), holdSec: m.holdSec };
   if (m.kind === 'off') return { v: NOTES_VERSION, kind: 'off', source: m.source, reason: m.reason, ...(m.atBeat === undefined ? {} : { atBeat: m.atBeat }) };
   return {
     v: NOTES_VERSION, kind: 'routes',
@@ -185,6 +210,9 @@ export const notesMessage = (source: string, events: WireNote[]): NotesMessage =
 export const offMessage = (source: string, reason: NotesOffReason, atBeat?: number): NotesMessage =>
   ({ v: NOTES_VERSION, kind: 'off', source, reason, ...(atBeat === undefined ? {} : { atBeat }) });
 export const routesMessage = (routes: NotesRoute[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'routes', routes });
+/** An audition (0.5.0): `events` routed for the target, played now and held `holdSec`. */
+export const auditionMessage = (source: string, events: WireNote[], holdSec: number): NotesMessage =>
+  ({ v: NOTES_VERSION, kind: 'audition', source, events, holdSec });
 
 /**
  * An instrument's side of the contract (its Notes in), in beats: it takes messages, keeps the events not played yet in
@@ -209,14 +237,14 @@ export class NotesInbox {
   /**
    * Take a message (checked with parseNotesMessage). Returns what it was: the parsed message, or null when it was
    * invalid. `notes` adds the events it doesn't already have; `off` drops a source's waiting events (from `atBeat`
-   * on, when given); `routes` replaces the routes.
+   * on, when given); `routes` replaces the routes; `audition` changes nothing here (the instrument plays it now).
    */
   receive(raw: unknown): NotesMessage | null {
     const m = parseNotesMessage(raw);
     if (!m) { this.stats.invalid++; return null; }
     if (m.kind === 'notes') this.add(m.events);
     else if (m.kind === 'off') this.off(m.source, m.atBeat);
-    else this.current = m.routes;
+    else if (m.kind === 'routes') this.current = m.routes;
     return m;
   }
 
