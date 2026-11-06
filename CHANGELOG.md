@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0] - 2026-11-05
+
+For CALLIOPE: a pad clicked while the Studio is stopped is heard at once (Peter, 2026-11-05: he clicked a pad, heard
+nothing and thought it was broken). No change to any note stream (the golden test still replays ASTRID's 255 streams
+exactly). The contract stays v1: one new message kind, which a receiver from before drops as unknown (nothing plays
+there, nothing else changes).
+
+- Contract: `audition` (`auditionMessage(source, events, holdSec)`): routed notes played now, once, each held
+  `holdSec` (at most `MAX_AUDITION_HOLD_SEC`, 8 s; at most `MAX_AUDITION_NOTES`, 64) and released; `startBeat` and the
+  gate are not read. A newer audition from the same source releases the one before; an `off` releases it too.
+  `NotesInbox` takes it and keeps nothing.
+- `auditionEvents(settings, hit?)`: the chord a pad would play, as one Block hit (the generator's voicing; no arp,
+  progression, strum or colour tone), at beat 0. `AUDITION_HOLD_SEC` (1.5 s) is the default hold.
+
 ## [0.4.1] - 2026-11-05
 
 - `PitchFollower`: a Stop (`off` 'stop' with no beat) keeps the timeline until the next run (an off for the target
