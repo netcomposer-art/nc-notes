@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-11-11
+
+For LUPA's voice laps (v1b; decision 14 of the Song Looper spec revision 2): LUCY records the mic one lap at a time,
+and LUPA plays the laps it kept. No change to any note stream (the golden test still replays ASTRID's 255 streams
+exactly). The contract stays v1: a new control type, which a receiver from before refuses with its message (`bad
+type`): LUPA sends take controls to LUCY only (the Studio's targeted send), so no other receiver sees one.
+
+- Contract: `TakeEvent` (`type: 'take'`, id, beat, `take` (the audio's name in the recorder's store), `lengthBeats`
+  (above 0, at most `MAX_TAKE_BEATS`), and for controls `gain` (0–`MAX_TAKE_GAIN`) and `offsetBeats`). A
+  `ControlEvent`, so `played` (LUCY: a lap kept) and `controls` (LUPA: play it) carry it; `controlEventError` checks it.
+- Contract: `LapEvent` (`type: 'lap'`, id, beat, `lengthBeats`): LUPA announces each lap ahead, as a control to LUCY
+  only, so an armed LUCY records it; an `off` drops the laps not begun.
+
 ## [0.6.0] - 2026-11-10
 
 For the Song Looper (step 1 of its build; spec revision 2, approved by Peter 2026-11-10): instruments report what is

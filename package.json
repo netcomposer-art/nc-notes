@@ -1,6 +1,6 @@
 {
   "name": "@netcomposer/nc-notes",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "NetComposer's Note Generator: chords, progressions, chord pads, arp and Euclid rhythms as timed note events. Pure TypeScript, no DOM or Web Audio.",
   "license": "MIT",
   "author": {
