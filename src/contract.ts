@@ -104,13 +104,25 @@ export interface TakeEvent {
   offsetBeats?: number;
 }
 
+/**
+ * A lap (0.7.0): LUPA announces each lap ahead, from `beat` for `lengthBeats`, so a recorder armed for it (LUCY) takes
+ * the lap. Sent as a control to that recorder only; an `off` drops the laps not begun.
+ */
+export interface LapEvent {
+  type: 'lap';
+  id: string;
+  beat: number;
+  /** Above 0, at most MAX_TAKE_BEATS. */
+  lengthBeats: number;
+}
+
 /** The longest take in beats (LUPA's longest lap: 16 bars at 240 BPM caps at a minute, 64 bars of headroom). */
 export const MAX_TAKE_BEATS = 256;
 /** The most a take's gain may be (+6 dB). */
 export const MAX_TAKE_GAIN = 2;
 
 /** A recorded change that is not a note: what `controls` carries. */
-export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent;
+export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent;
 
 /**
  * A key or pad played by hand, reported by the instrument (0.6.0). `on` starts the note and `off` ends it; both carry
@@ -268,6 +280,10 @@ export function controlEventError(x: unknown): string | null {
     if (x.offsetBeats !== undefined && (!finite(x.offsetBeats) || x.offsetBeats < 0 || x.offsetBeats >= x.lengthBeats)) return 'offsetBeats must be from 0, below lengthBeats';
     return null;
   }
+  if (x.type === 'lap') {
+    if (!finite(x.lengthBeats) || x.lengthBeats <= 0 || x.lengthBeats > MAX_TAKE_BEATS) return `lengthBeats must be above 0, at most ${MAX_TAKE_BEATS}`;
+    return null;
+  }
   return 'bad type';
 }
 
@@ -365,6 +381,7 @@ const copyControl = (e: ControlEvent): ControlEvent =>
     ...(e.gain === undefined ? {} : { gain: e.gain }),
     ...(e.offsetBeats === undefined ? {} : { offsetBeats: e.offsetBeats }),
   }
+  : e.type === 'lap' ? { type: 'lap', id: e.id, beat: e.beat, lengthBeats: e.lengthBeats }
   : { type: 'chordPad', id: e.id, beat: e.beat, pad: e.pad };
 
 const copyPlayed = (e: PlayedEvent): PlayedEvent =>

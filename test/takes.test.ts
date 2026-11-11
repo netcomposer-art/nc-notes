@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MAX_TAKE_BEATS, MAX_TAKE_GAIN, NotesInbox, controlEventError, controlsMessage, notesMessageError,
-  parseNotesMessage, playedEventError, playedMessage, type ControlEvent, type TakeEvent,
+  parseNotesMessage, playedEventError, playedMessage, type ControlEvent, type LapEvent, type TakeEvent,
 } from '../src/index.js';
 
 const kept: TakeEvent = { type: 'take', id: 'lap|3', beat: 36, take: 'lupa-12', lengthBeats: 32 };
@@ -53,4 +53,15 @@ test('take controls wait in the inbox until due, once by id; an off drops the wa
   assert.deepEqual(inbox.takeControls((b) => b <= 70).map((e) => e.id), ['r|7']);
   inbox.off('looper', 90);
   assert.equal(inbox.controlsSize, 0);
+});
+
+test('lap: announced ahead as a control, checked and copied', () => {
+  const lap: LapEvent = { type: 'lap', id: 'lap|4', beat: 36, lengthBeats: 32 };
+  const m = controlsMessage('looper', [lap]);
+  assert.equal(notesMessageError(m), null);
+  const parsed = parseNotesMessage({ ...m, events: [{ ...lap, extra: 1 }] });
+  assert.deepEqual((parsed as { events: ControlEvent[] }).events, [lap]);
+  assert.match(controlEventError({ ...lap, lengthBeats: 0 }) ?? '', /lengthBeats/);
+  assert.match(controlEventError({ ...lap, lengthBeats: MAX_TAKE_BEATS + 1 }) ?? '', /lengthBeats/);
+  assert.match(controlEventError({ ...lap, beat: 'x' }) ?? '', /bad beat/);
 });

@@ -119,16 +119,18 @@ type NotesMessage =
 - **Pads as notes.** Pads 1–16 travel as MIDI 36–51: `padNote(pad)`, `padOfNote(note)`.
 - **Takes (0.7.0).** LUPA's voice laps: LUCY reports a lap it kept as a `take` in `played` (the audio's name in its
   store, the beat it started, its length), and LUPA sends `take` controls back to play it (beat, `gain`,
-  `offsetBeats`), to LUCY only.
+  `offsetBeats`), to LUCY only. LUPA announces each lap ahead with a `lap` control (beat, `lengthBeats`), so an armed
+  LUCY records it.
 
 ```ts
 type PlayedEvent =
   | { type: 'note'; id: string; beat: number; on: boolean; note: number; velocity?: number; slice?: number }
   | { type: 'slot'; id: string; beat: number; slot: number }
   | { type: 'chordPad'; id: string; beat: number; pad: number | null }
-  | { type: 'take'; id: string; beat: number; take: string; lengthBeats: number; gain?: number; offsetBeats?: number };
+  | { type: 'take'; id: string; beat: number; take: string; lengthBeats: number; gain?: number; offsetBeats?: number }
+  | { type: 'lap'; id: string; beat: number; lengthBeats: number };
 // { v: 1; kind: 'played'; source; events: PlayedEvent[] }  instrument -> Studio
-// { v: 1; kind: 'controls'; source; events: (slot | chordPad | take)[] }  Looper -> instrument
+// { v: 1; kind: 'controls'; source; events: (slot | chordPad | take | lap)[] }  Looper -> instrument
 ```
 
 ### The Bass rule

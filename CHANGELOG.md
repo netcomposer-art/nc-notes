@@ -10,6 +10,8 @@ type`): LUPA sends take controls to LUCY only (the Studio's targeted send), so n
 - Contract: `TakeEvent` (`type: 'take'`, id, beat, `take` (the audio's name in the recorder's store), `lengthBeats`
   (above 0, at most `MAX_TAKE_BEATS`), and for controls `gain` (0–`MAX_TAKE_GAIN`) and `offsetBeats`). A
   `ControlEvent`, so `played` (LUCY: a lap kept) and `controls` (LUPA: play it) carry it; `controlEventError` checks it.
+- Contract: `LapEvent` (`type: 'lap'`, id, beat, `lengthBeats`): LUPA announces each lap ahead, as a control to LUCY
+  only, so an armed LUCY records it; an `off` drops the laps not begun.
 
 ## [0.6.0] - 2026-11-10
 
