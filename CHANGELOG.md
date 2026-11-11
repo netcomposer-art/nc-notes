@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.6.0] - 2026-11-10
+
+For the Song Looper (step 1 of its build; spec revision 2, approved by Peter 2026-11-10): instruments report what is
+played on them by hand, and the Looper plays it back. No change to any note stream (the golden test still replays
+ASTRID's 255 streams exactly). The contract stays v1: two new message kinds, which a receiver from before drops as
+unknown, and two new optional fields, which it ignores.
+
+- Contract: `played` (`playedMessage(source, events)`), from an instrument to the Studio: `PlayedNote` (`on` and `off`
+  with one id, the beat the player heard, MIDI note, velocity, a pad's `slice`), `SlotEvent` (a slot recalled by hand,
+  1–`MAX_SLOT`) and `ChordPadEvent` (a CALLIOPE chord pad latched, 1–16, or let go, null). `playedEventError` says what
+  is wrong with one.
+- Contract: `controls` (`controlsMessage(source, events)`): slot and chord-pad changes to make at their beats, sent
+  ahead and idempotent by id like notes. `NotesInbox` keeps them (`controlsSize`, `takeControls(due)`); an `off`
+  drops the waiting ones; `prune` drops past ones. `controlEventError` checks one.
+- Contract: `NotesRoute.layer` (optional): the source adds to what the instrument plays, so its own generator and keys
+  keep playing. `NotesInbox.standsAside` is true only while a route that isn't a layer plays it (`active` is
+  unchanged: any route). A receiver from before ignores `layer` and stands aside.
+- Pads as notes: `padNote(pad)` and `padOfNote(note)` (pads 1–16 are MIDI 36–51, `PAD_NOTE_BASE`), and
+  `WireNote.slice` (optional, 0–`MAX_SLICE`) for a pad's slice.
+- `PitchFollower` ignores `played` and `controls` (no pitch in them), even from the source it follows.
+
 ## [0.5.0] - 2026-11-05
 
 For CALLIOPE: a pad clicked while the Studio is stopped is heard at once (Peter, 2026-11-05: he clicked a pad, heard

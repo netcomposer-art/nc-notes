@@ -106,6 +106,27 @@ type NotesMessage =
   and `NotesInbox` keeps what is waiting in start order: `receive(msg)`, `take(due)`, `off(source, atBeat)`,
   `prune(beat)`, `active` (some source plays it).
 
+#### For the Song Looper (0.6.0)
+
+- **Played.** An instrument reports what was played on it by hand with `played` (`playedMessage`): notes (`on` and
+  `off` with one id, a pad's `slice`), slot recalls (`slot`, as labelled from 1) and CALLIOPE chord pads (`pad` 1–16,
+  or null when let go). Each carries the beat the player heard: press time minus the output latency, read from the
+  audio clock (`AudioContext.getOutputTimestamp`), so a replay at that beat sounds when the key went down.
+- **Controls.** Recorded slot and chord-pad changes go back with `controls` (`controlsMessage`), ahead and idempotent
+  like notes. `NotesInbox.takeControls(due)` hands them out in beat order; an `off` drops the waiting ones.
+- **Layer.** A route with `layer: true` adds to what the instrument plays: its own generator and keys keep going.
+  Read `NotesInbox.standsAside` (a route that isn't a layer) to decide whether the generator stands aside.
+- **Pads as notes.** Pads 1–16 travel as MIDI 36–51: `padNote(pad)`, `padOfNote(note)`.
+
+```ts
+type PlayedEvent =
+  | { type: 'note'; id: string; beat: number; on: boolean; note: number; velocity?: number; slice?: number }
+  | { type: 'slot'; id: string; beat: number; slot: number }
+  | { type: 'chordPad'; id: string; beat: number; pad: number | null };
+// { v: 1; kind: 'played'; source; events: PlayedEvent[] }  instrument -> Studio
+// { v: 1; kind: 'controls'; source; events: (slot | chordPad)[] }  Looper -> instrument
+```
+
 ### The Bass rule
 
 A Bass under CALLIOPE keeps its own rhythm and takes the pitch at each of its steps: the root of whatever chord is
