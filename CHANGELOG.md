@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0] - 2026-11-12
+
+For LUPA's Mute and Solo (Peter, 2026-11-12: a long sample from a muted pass kept playing to its end). No change to
+any note stream; the contract stays v1. A new message kind, which a receiver from before drops as unknown.
+
+- Contract: `release` (`releaseMessage(source, ids)`, at most `MAX_RELEASE_IDS` ids): release these sounding notes
+  now, by event id; the rest of the source keeps playing. `NotesInbox.receive` drops the waiting events with those ids.
+
 ## [0.9.0] - 2026-11-11
 
 For LUPA's voice pass rows (v1b). No change to any note stream; the contract stays v1.
