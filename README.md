@@ -117,6 +117,8 @@ type NotesMessage =
 - **Layer.** A route with `layer: true` adds to what the instrument plays: its own generator and keys keep going.
   Read `NotesInbox.standsAside` (a route that isn't a layer) to decide whether the generator stands aside.
 - **Pads as notes.** Pads 1–16 travel as MIDI 36–51: `padNote(pad)`, `padOfNote(note)`.
+- **Sound names (0.8.0).** A `played` note-on may carry `name`, the sound's name as the player sees it (a NYX pad's
+  sample, at most `MAX_SOUND_NAME` characters), so LUPA can label a pass. Display only.
 - **Takes (0.7.0).** LUPA's voice laps: LUCY reports a lap it kept as a `take` in `played` (the audio's name in its
   store, the beat it started, its length), and LUPA sends `take` controls back to play it (beat, `gain`,
   `offsetBeats`), to LUCY only. LUPA announces each lap ahead with a `lap` control (beat, `lengthBeats`), so an armed
