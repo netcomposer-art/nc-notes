@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_TAKE_BEATS, MAX_TAKE_GAIN, NotesInbox, controlEventError, controlsMessage, notesMessageError,
+  MAX_TAKE_BEATS, MAX_TAKE_GAIN, MAX_TAKE_PEAKS, NotesInbox, controlEventError, controlsMessage, notesMessageError,
   parseNotesMessage, playedEventError, playedMessage, type ControlEvent, type LapEvent, type TakeEvent,
 } from '../src/index.js';
 
@@ -38,6 +38,10 @@ test('take: each field checked, one line each', () => {
     [{ offsetBeats: -1 }, /offsetBeats/],
     [{ offsetBeats: 32 }, /offsetBeats/],
     [{ beat: Number.NaN }, /bad beat/],
+    [{ peaks: [1.01] }, /peaks/],
+    [{ peaks: [Number.NaN] }, /peaks/],
+    [{ peaks: Array(MAX_TAKE_PEAKS + 1).fill(0) }, /peaks/],
+    [{ peaks: 'x' as unknown as number[] }, /peaks/],
   ];
   for (const [patch, re] of bad) assert.match(controlEventError({ ...play, ...patch }) ?? '', re, JSON.stringify(patch));
   assert.equal(controlEventError(play), null);
@@ -64,4 +68,13 @@ test('lap: announced ahead as a control, checked and copied', () => {
   assert.match(controlEventError({ ...lap, lengthBeats: 0 }) ?? '', /lengthBeats/);
   assert.match(controlEventError({ ...lap, lengthBeats: MAX_TAKE_BEATS + 1 }) ?? '', /lengthBeats/);
   assert.match(controlEventError({ ...lap, beat: 'x' }) ?? '', /bad beat/);
+});
+
+test('take peaks (0.9.0): a kept take may carry its loudness for display; kept as a fresh copy', () => {
+  const withPeaks: TakeEvent = { ...kept, peaks: [0, 0.25, 1] };
+  assert.equal(playedEventError(withPeaks), null);
+  const parsed = parseNotesMessage(playedMessage('lucy', [withPeaks])) as { events: TakeEvent[] };
+  assert.deepEqual(parsed.events[0]?.peaks, [0, 0.25, 1]);
+  assert.notEqual(parsed.events[0]?.peaks, withPeaks.peaks);
+  assert.equal(playedEventError({ ...kept, peaks: Array(MAX_TAKE_PEAKS).fill(0.5) }), null);
 });
