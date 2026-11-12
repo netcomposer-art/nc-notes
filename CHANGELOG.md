@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0] - 2026-11-11
+
+For LUPA's voice pass rows (v1b). No change to any note stream; the contract stays v1.
+
+- Contract: `TakeEvent.peaks` (at most `MAX_TAKE_PEAKS` values 0–1): a kept take's loudness across it, for display.
+  Checked by `controlEventError` / `playedEventError`, copied by `parseNotesMessage`.
+- Docs: a take control's `lengthBeats` is the whole take; it plays from `offsetBeats` into it to its end.
+
 ## [0.8.0] - 2026-11-11
 
 For LUPA's pass rows (Peter, 2026-11-11: show a NYX pass's sample names). No change to any note stream; the contract

@@ -90,7 +90,8 @@ export interface ChordPadEvent {
 /**
  * A take of audio (0.7.0, LUPA's voice laps: LUCY records the mic one lap at a time). Played (LUCY → the Studio): lap
  * `take` was kept, recorded from `beat` for `lengthBeats`. As a control (LUPA → LUCY): play `take` from `beat`, at
- * `gain`, starting `offsetBeats` into it (a resend after a change mid-take), for `lengthBeats`. `take` names the audio
+ * `gain`, starting `offsetBeats` into it (a resend after a change mid-take) and playing to its end: `lengthBeats` is the
+ * whole take, so it sounds for lengthBeats − offsetBeats. `take` names the audio
  * in the recorder's own store.
  */
 export interface TakeEvent {
@@ -104,6 +105,11 @@ export interface TakeEvent {
   gain?: number;
   /** From 0, below lengthBeats; absent: 0. Controls only. */
   offsetBeats?: number;
+  /**
+   * The take's loudness across it, each 0–1, at most MAX_TAKE_PEAKS values (0.9.0); played only. For display (LUPA's
+   * voice pass rows draw it); nothing needs it to play.
+   */
+  peaks?: number[];
 }
 
 /**
@@ -122,6 +128,8 @@ export interface LapEvent {
 export const MAX_TAKE_BEATS = 256;
 /** The most a take's gain may be (+6 dB). */
 export const MAX_TAKE_GAIN = 2;
+/** The most peak values a take may carry (0.9.0). */
+export const MAX_TAKE_PEAKS = 128;
 
 /** A recorded change that is not a note: what `controls` carries. */
 export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent;
@@ -285,6 +293,8 @@ export function controlEventError(x: unknown): string | null {
     if (!finite(x.lengthBeats) || x.lengthBeats <= 0 || x.lengthBeats > MAX_TAKE_BEATS) return `lengthBeats must be above 0, at most ${MAX_TAKE_BEATS}`;
     if (x.gain !== undefined && (!finite(x.gain) || x.gain < 0 || x.gain > MAX_TAKE_GAIN)) return `gain must be 0–${MAX_TAKE_GAIN}`;
     if (x.offsetBeats !== undefined && (!finite(x.offsetBeats) || x.offsetBeats < 0 || x.offsetBeats >= x.lengthBeats)) return 'offsetBeats must be from 0, below lengthBeats';
+    if (x.peaks !== undefined && !(Array.isArray(x.peaks) && x.peaks.length <= MAX_TAKE_PEAKS && x.peaks.every((v) => finite(v) && v >= 0 && v <= 1)))
+      return `peaks must be at most ${MAX_TAKE_PEAKS} values 0–1`;
     return null;
   }
   if (x.type === 'lap') {
@@ -390,6 +400,7 @@ const copyControl = (e: ControlEvent): ControlEvent =>
     type: 'take', id: e.id, beat: e.beat, take: e.take, lengthBeats: e.lengthBeats,
     ...(e.gain === undefined ? {} : { gain: e.gain }),
     ...(e.offsetBeats === undefined ? {} : { offsetBeats: e.offsetBeats }),
+    ...(e.peaks === undefined ? {} : { peaks: [...e.peaks] }),
   }
   : e.type === 'lap' ? { type: 'lap', id: e.id, beat: e.beat, lengthBeats: e.lengthBeats }
   : { type: 'chordPad', id: e.id, beat: e.beat, pad: e.pad };
