@@ -119,6 +119,8 @@ type NotesMessage =
 - **Pads as notes.** Pads 1–16 travel as MIDI 36–51: `padNote(pad)`, `padOfNote(note)`.
 - **Sound names (0.8.0).** A `played` note-on may carry `name`, the sound's name as the player sees it (a NYX pad's
   sample, at most `MAX_SOUND_NAME` characters), so LUPA can label a pass. Display only.
+- **Release (0.10.0).** `release` (`releaseMessage(source, ids)`) releases those sounding notes now, by event id,
+  and the rest of the source keeps playing: LUPA muting or soloing a pass whose long sample still rings.
 - **Take peaks (0.9.0).** A kept `take` may carry `peaks` (at most `MAX_TAKE_PEAKS` values 0–1), its loudness across
   it, so LUPA can draw a voice pass. Display only.
 - **Takes (0.7.0).** LUPA's voice laps: LUCY reports a lap it kept as a `take` in `played` (the audio's name in its

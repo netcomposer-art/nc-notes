@@ -83,8 +83,8 @@ export class PitchFollower {
       this.serial++;
       return m;
     }
-    // A report of what was played, or slot and chord-pad changes (0.6.0): no pitch in them.
-    if (m.kind === 'played' || m.kind === 'controls') { this.stats.ignored++; return m; }
+    // A report of what was played, slot and chord-pad changes (0.6.0), or a release (0.10.0): no pitch in them.
+    if (m.kind === 'played' || m.kind === 'controls' || m.kind === 'release') { this.stats.ignored++; return m; }
     let added = false;
     for (const e of m.events) {
       const run = runOfId(e.id);

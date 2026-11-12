@@ -38,6 +38,8 @@ export const MAX_AUDITION_NOTES = 64;
 export const MAX_AUDITION_HOLD_SEC = 8;
 /** The highest slot number (slots are numbered as labelled, from 1; the 0 key is slot 10). */
 export const MAX_SLOT = 16;
+/** The most note ids one `release` message may carry (0.10.0). */
+export const MAX_RELEASE_IDS = 1024;
 /** The most pads (NYX pads, CALLIOPE chord pads), numbered from 1. */
 export const MAX_PAD = 16;
 /** The MIDI note of pad 1 when a pad hit travels as a note (pads 1–16 are notes 36–51, as on drum machines). */
@@ -218,7 +220,13 @@ export type NotesMessage =
    * and idempotent by id. An `off` from the source drops the ones waiting. A receiver from before 0.6.0 drops it as an
    * unknown kind.
    */
-  | { v: typeof NOTES_VERSION; kind: 'controls'; source: string; events: ControlEvent[] };
+  | { v: typeof NOTES_VERSION; kind: 'controls'; source: string; events: ControlEvent[] }
+  /**
+   * Release these notes now, by event id (0.10.0: LUPA muting or soloing a pass whose notes still ring, a long
+   * sample). The instrument fades each sounding note it started from one of these ids, and drops any still waiting.
+   * Other notes from the source keep playing. A receiver from before 0.10.0 drops it as an unknown kind.
+   */
+  | { v: typeof NOTES_VERSION; kind: 'release'; source: string; ids: string[] };
 
 /** The id of event `index` of hit `hit`, played in `role`, in run `run` of `source`. */
 // The id's parts are joined with '|'; runOfId() reads the run back from the end (a source id may hold anything).
@@ -374,6 +382,13 @@ export function notesMessageError(x: unknown): string | null {
     if (x.atBeat !== undefined && !finite(x.atBeat)) return 'bad atBeat';
     return null;
   }
+  if (x.kind === 'release') {
+    if (!isId(x.source)) return 'bad source';
+    if (!Array.isArray(x.ids)) return 'ids must be a list';
+    if (x.ids.length > MAX_RELEASE_IDS) return `more than ${MAX_RELEASE_IDS} ids`;
+    for (let i = 0; i < x.ids.length; i++) if (!isId(x.ids[i])) return `id ${i}: bad id`;
+    return null;
+  }
   if (x.kind === 'routes') {
     if (!Array.isArray(x.routes) || x.routes.length > 64) return 'routes must be a list (at most 64)';
     for (const r of x.routes) {
@@ -425,6 +440,7 @@ export function parseNotesMessage(x: unknown): NotesMessage | null {
   if (m.kind === 'played') return { v: NOTES_VERSION, kind: 'played', source: m.source, events: m.events.map(copyPlayed) };
   if (m.kind === 'controls') return { v: NOTES_VERSION, kind: 'controls', source: m.source, events: m.events.map(copyControl) };
   if (m.kind === 'off') return { v: NOTES_VERSION, kind: 'off', source: m.source, reason: m.reason, ...(m.atBeat === undefined ? {} : { atBeat: m.atBeat }) };
+  if (m.kind === 'release') return { v: NOTES_VERSION, kind: 'release', source: m.source, ids: [...m.ids] };
   return {
     v: NOTES_VERSION, kind: 'routes',
     routes: m.routes.map(r => ({
@@ -440,6 +456,8 @@ export function parseNotesMessage(x: unknown): NotesMessage | null {
 export const notesMessage = (source: string, events: WireNote[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'notes', source, events });
 export const offMessage = (source: string, reason: NotesOffReason, atBeat?: number): NotesMessage =>
   ({ v: NOTES_VERSION, kind: 'off', source, reason, ...(atBeat === undefined ? {} : { atBeat }) });
+/** Release these sounding notes now (0.10.0), by event id. */
+export const releaseMessage = (source: string, ids: string[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'release', source, ids });
 export const routesMessage = (routes: NotesRoute[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'routes', routes });
 /** An audition (0.5.0): `events` routed for the target, played now and held `holdSec`. */
 export const auditionMessage = (source: string, events: WireNote[], holdSec: number): NotesMessage =>
@@ -481,7 +499,8 @@ export class NotesInbox {
   /**
    * Take a message (checked with parseNotesMessage). Returns what it was: the parsed message, or null when it was
    * invalid. `notes` adds the events it doesn't already have; `controls` adds the changes it doesn't already have;
-   * `off` drops a source's waiting events and changes (from `atBeat` on, when given); `routes` replaces the routes;
+   * `off` drops a source's waiting events and changes (from `atBeat` on, when given); `release` drops the waiting
+   * events with those ids (the host fades the sounding ones); `routes` replaces the routes;
    * `audition` and `played` change nothing here.
    */
   receive(raw: unknown): NotesMessage | null {
@@ -490,6 +509,7 @@ export class NotesInbox {
     if (m.kind === 'notes') this.add(m.events);
     else if (m.kind === 'controls') this.addControls(m.source, m.events);
     else if (m.kind === 'off') this.off(m.source, m.atBeat);
+    else if (m.kind === 'release') { const ids = new Set(m.ids); this.pending = this.pending.filter(e => !ids.has(e.id)); }
     else if (m.kind === 'routes') this.current = m.routes;
     return m;
   }
