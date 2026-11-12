@@ -30,6 +30,8 @@ export const MAX_EVENTS_PER_MESSAGE = 1024;
 export const MAX_TRANSPOSE = 48;
 /** The longest source id, event id or name, in characters. */
 export const MAX_ID_LENGTH = 128;
+/** The longest sound name a played note may carry (0.8.0), in characters. */
+export const MAX_SOUND_NAME = 40;
 /** The most notes one `audition` message may carry. */
 export const MAX_AUDITION_NOTES = 64;
 /** The longest an audition note may be held, in seconds. */
@@ -141,6 +143,11 @@ export interface PlayedNote {
   velocity?: number;
   /** A pad hit's slice (from 0); on only. */
   slice?: number;
+  /**
+   * The sound's name as the player sees it (0.8.0): a NYX pad's sample, 1–MAX_SOUND_NAME characters; on only. For
+   * display (LUPA's pass rows); a receiver never needs it to play the note.
+   */
+  name?: string;
 }
 
 /** What `played` carries: notes, slot changes and chord-pad changes. */
@@ -298,7 +305,10 @@ export function playedEventError(x: unknown): string | null {
   if (x.on) {
     if (!finite(x.velocity) || x.velocity <= 0 || x.velocity > 1) return 'velocity must be above 0, at most 1';
     if (x.slice !== undefined && !isSlice(x.slice)) return `slice must be a whole number 0–${MAX_SLICE}`;
-  } else if (x.velocity !== undefined || x.slice !== undefined) return 'an off has no velocity or slice';
+    if (x.name !== undefined && (typeof x.name !== 'string' || !x.name.length || x.name.length > MAX_SOUND_NAME))
+      return `name must be 1–${MAX_SOUND_NAME} characters`;
+  } else if (x.velocity !== undefined || x.slice !== undefined || x.name !== undefined)
+    return 'an off has no velocity, slice or name';
   return null;
 }
 
@@ -389,6 +399,7 @@ const copyPlayed = (e: PlayedEvent): PlayedEvent =>
     type: 'note', id: e.id, beat: e.beat, on: e.on, note: e.note,
     ...(e.on ? { velocity: e.velocity } : {}),
     ...(e.on && e.slice !== undefined ? { slice: e.slice } : {}),
+    ...(e.on && e.name !== undefined ? { name: e.name } : {}),
   };
 
 /**

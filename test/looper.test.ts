@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MAX_EVENTS_PER_MESSAGE, MAX_SLICE, MAX_SLOT, NOTES_VERSION, NotesInbox, PAD_NOTE_BASE, controlEventError, controlsMessage,
-  notesMessage, notesMessageError, offMessage, padNote, padOfNote, parseNotesMessage, playedEventError, playedMessage,
+  notesMessage, notesMessageError, offMessage, MAX_SOUND_NAME, padNote, padOfNote, parseNotesMessage, playedEventError, playedMessage,
   routesMessage, type ControlEvent, type PlayedEvent, type WireNote,
 } from '../src/index.js';
 
@@ -58,6 +58,15 @@ test('played: invalid events are refused with a reason', () => {
   assert.match(String(bad({ ...played[2], slice: -1 })), /slice/);
   assert.match(String(bad({ ...played[2], slice: MAX_SLICE + 1 })), /slice/);
   assert.match(String(bad({ ...played[1], velocity: 0.5 })), /off has no velocity/);
+  // 0.8.0: a sound name on an on, for display.
+  assert.equal(bad({ ...played[2], name: 'Kick 808' }), null);
+  assert.match(String(bad({ ...played[2], name: '' })), /name/);
+  assert.match(String(bad({ ...played[2], name: 'x'.repeat(MAX_SOUND_NAME + 1) })), /name/);
+  assert.match(String(bad({ ...played[2], name: 7 })), /name/);
+  assert.match(String(bad({ ...played[1], name: 'Kick 808' })), /off has no/);
+  const named = parseNotesMessage(playedMessage('nyx', [{ ...played[2], name: 'Kick 808' } as PlayedEvent]));
+  assert.ok(named && named.kind === 'played');
+  assert.equal((named.events[0] as { name?: string }).name, 'Kick 808', 'the name survives the checked copy');
   assert.match(String(bad({ ...played[3], slot: 0 })), /slot/);
   assert.match(String(bad({ ...played[3], slot: MAX_SLOT + 1 })), /slot/);
   assert.match(String(bad({ ...played[4], pad: 17 })), /pad/);

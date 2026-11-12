@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0] - 2026-11-11
+
+For LUPA's pass rows (Peter, 2026-11-11: show a NYX pass's sample names). No change to any note stream; the contract
+stays v1. A new optional field, which a receiver from before ignores (its checked copy drops it).
+
+- Contract: `PlayedNote.name` (on only, 1–`MAX_SOUND_NAME` characters): the sound's name as the player sees it, a NYX
+  pad's sample. For display; nothing needs it to play. `playedEventError` checks it; `parseNotesMessage` keeps it.
+
 ## [0.7.0] - 2026-11-11
 
 For LUPA's voice laps (v1b; decision 14 of the Song Looper spec revision 2): LUCY records the mic one lap at a time,
