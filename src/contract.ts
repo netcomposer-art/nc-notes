@@ -14,11 +14,13 @@
  *  - `played` (0.6.0) goes the other way: an instrument reports what was played on it by hand (keys, pads, slot and
  *    chord-pad changes), each stamped with the beat the player heard. The Song Looper records it. `controls` (0.6.0)
  *    sends recorded slot and chord-pad changes back, ahead of time, like notes.
+ *  - `param` (0.11.0) is a knob or slider: played, moved by hand; as a control, set at a beat (LUPA's knob passes).
  *
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
  */
 import type { NoteEvent, NoteRole, TargetRole } from './events.js';
+import { ParamLanes } from './param-lanes.js';
 import { routeRole } from './route.js';
 
 /** The contract's version. A receiver ignores messages from a newer major version. */
@@ -133,8 +135,47 @@ export const MAX_TAKE_GAIN = 2;
 /** The most peak values a take may carry (0.9.0). */
 export const MAX_TAKE_PEAKS = 128;
 
+/** The longest param id (0.11.0), in characters: letters, digits, '.', '-' and '_'. */
+export const MAX_PARAM_ID = 64;
+/** The longest param label or value text (0.11.0), in characters. */
+export const MAX_PARAM_LABEL = 24;
+/** The longest glide a param control may ask for (0.11.0), in beats. */
+export const MAX_PARAM_GLIDE_BEATS = 4;
+
+/**
+ * A knob or slider (0.11.0, LUPA's knob passes). Generic: any instrument may report its sound controls this way.
+ *
+ * Played (instrument → Studio): the player moved `param` by hand to `value` at `beat` (the beat heard, as a note's).
+ * Only hand moves are reported (never a preset load, another source, or a control replayed), at most a few dozen a
+ * second per param, repeats dropped. `label` and `text` say what the player sees ("Filter", "1.2 kHz"); `from` is the
+ * value just before this move began (the first report of a gesture), so a recorder knows where the knob was.
+ *
+ * As a control (LUPA → instrument): set `param` to `value` at `beat`. With `glide`, the value moves in a straight
+ * line from the point before over the last `glide` beats up to `beat` (a sweep that doesn't step); without, it
+ * arrives at `beat` (the instrument smooths the step). `ParamLanes` does this for an instrument.
+ *
+ * `value` is 0–1: where the control's travel is (its taper applied), so 0.5 is the middle of the knob.
+ */
+export interface ParamEvent {
+  type: 'param';
+  id: string;
+  beat: number;
+  /** The instrument's stable id for the control ("cutoff"); 1–MAX_PARAM_ID of [A-Za-z0-9._-]. */
+  param: string;
+  /** 0–1 along the control's travel. */
+  value: number;
+  /** Played only: the control's name as the player sees it, 1–MAX_PARAM_LABEL characters. */
+  label?: string;
+  /** Played only: the value as the instrument shows it ("1.2 kHz"), 1–MAX_PARAM_LABEL characters. */
+  text?: string;
+  /** Played only: the value (0–1) just before this move began. */
+  from?: number;
+  /** Controls only: glide from the point before over this many beats (above 0, at most MAX_PARAM_GLIDE_BEATS). */
+  glide?: number;
+}
+
 /** A recorded change that is not a note: what `controls` carries. */
-export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent;
+export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent | ParamEvent;
 
 /**
  * A key or pad played by hand, reported by the instrument (0.6.0). `on` starts the note and `off` ends it; both carry
@@ -160,7 +201,7 @@ export interface PlayedNote {
   name?: string;
 }
 
-/** What `played` carries: notes, slot changes and chord-pad changes. */
+/** What `played` carries: notes, slot changes, chord-pad changes, takes and knob moves. */
 export type PlayedEvent = PlayedNote | ControlEvent;
 
 
@@ -309,8 +350,22 @@ export function controlEventError(x: unknown): string | null {
     if (!finite(x.lengthBeats) || x.lengthBeats <= 0 || x.lengthBeats > MAX_TAKE_BEATS) return `lengthBeats must be above 0, at most ${MAX_TAKE_BEATS}`;
     return null;
   }
+  if (x.type === 'param') {
+    if (typeof x.param !== 'string' || !PARAM_ID.test(x.param)) return `param must be 1–${MAX_PARAM_ID} letters, digits, '.', '-' or '_'`;
+    if (!unit(x.value)) return 'value must be 0–1';
+    if (x.label !== undefined && !isLabel(x.label)) return `label must be 1–${MAX_PARAM_LABEL} characters`;
+    if (x.text !== undefined && !isLabel(x.text)) return `text must be 1–${MAX_PARAM_LABEL} characters`;
+    if (x.from !== undefined && !unit(x.from)) return 'from must be 0–1';
+    if (x.glide !== undefined && (!finite(x.glide) || x.glide <= 0 || x.glide > MAX_PARAM_GLIDE_BEATS))
+      return `glide must be above 0, at most ${MAX_PARAM_GLIDE_BEATS} beats`;
+    return null;
+  }
   return 'bad type';
 }
+
+const PARAM_ID = new RegExp(`^[A-Za-z0-9._-]{1,${MAX_PARAM_ID}}$`);
+const unit = (x: unknown): boolean => finite(x) && x >= 0 && x <= 1;
+const isLabel = (x: unknown): boolean => typeof x === 'string' && x.length > 0 && x.length <= MAX_PARAM_LABEL;
 
 /** Why `x` is not a valid played event, or null when it is. */
 export function playedEventError(x: unknown): string | null {
@@ -418,6 +473,13 @@ const copyControl = (e: ControlEvent): ControlEvent =>
     ...(e.peaks === undefined ? {} : { peaks: [...e.peaks] }),
   }
   : e.type === 'lap' ? { type: 'lap', id: e.id, beat: e.beat, lengthBeats: e.lengthBeats }
+  : e.type === 'param' ? {
+    type: 'param', id: e.id, beat: e.beat, param: e.param, value: e.value,
+    ...(e.label === undefined ? {} : { label: e.label }),
+    ...(e.text === undefined ? {} : { text: e.text }),
+    ...(e.from === undefined ? {} : { from: e.from }),
+    ...(e.glide === undefined ? {} : { glide: e.glide }),
+  }
   : { type: 'chordPad', id: e.id, beat: e.beat, pad: e.pad };
 
 const copyPlayed = (e: PlayedEvent): PlayedEvent =>
@@ -464,7 +526,7 @@ export const auditionMessage = (source: string, events: WireNote[], holdSec: num
   ({ v: NOTES_VERSION, kind: 'audition', source, events, holdSec });
 /** What an instrument played by hand (0.6.0). */
 export const playedMessage = (source: string, events: PlayedEvent[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'played', source, events });
-/** Slot and chord-pad changes to make at their beats (0.6.0). */
+/** Slot, chord-pad, take, lap and param changes to make at their beats (0.6.0; param 0.11.0). */
 export const controlsMessage = (source: string, events: ControlEvent[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'controls', source, events });
 
 /**
@@ -479,6 +541,12 @@ export class NotesInbox {
   /** Every id taken (pending or played), with its end beat, so a resend is a no-op. */
   private seen = new Map<string, number>();
   private current: NotesRoute[] = [];
+  /**
+   * Param controls (0.11.0: LUPA's knob passes), kept apart from the other controls: the instrument reads the value
+   * of each param at the beat it plays (`params.values(beat)`), with glides, and a hand move drops what waits for
+   * that param (`params.hand(param)`). `takeControls` never hands them out.
+   */
+  readonly params = new ParamLanes();
   /** Events refused (invalid messages) and resends ignored, for tests and diagnostics. */
   readonly stats = { accepted: 0, duplicates: 0, invalid: 0, dropped: 0 };
 
@@ -498,9 +566,9 @@ export class NotesInbox {
 
   /**
    * Take a message (checked with parseNotesMessage). Returns what it was: the parsed message, or null when it was
-   * invalid. `notes` adds the events it doesn't already have; `controls` adds the changes it doesn't already have;
-   * `off` drops a source's waiting events and changes (from `atBeat` on, when given); `release` drops the waiting
-   * events with those ids (the host fades the sounding ones); `routes` replaces the routes;
+   * invalid. `notes` adds the events it doesn't already have; `controls` adds the changes it doesn't already have
+   * (param controls go to `params`); `off` drops a source's waiting events and changes (from `atBeat` on, when given);
+   * `release` drops the waiting events with those ids (the host fades the sounding ones); `routes` replaces the routes;
    * `audition` and `played` change nothing here.
    */
   receive(raw: unknown): NotesMessage | null {
@@ -535,7 +603,12 @@ export class NotesInbox {
   /** Add slot and chord-pad changes from `source` (already checked); ids already taken are ignored. Returns the ones added. */
   addControls(source: string, events: readonly ControlEvent[]): ControlEvent[] {
     const added: ControlEvent[] = [];
+    const params = events.filter((e): e is ParamEvent => e.type === 'param');
+    const tookParams: ParamEvent[] = params.length ? this.params.add(source, params) : [];
+    this.stats.accepted += tookParams.length;
+    this.stats.duplicates += params.length - tookParams.length;
     for (const e of events) {
+      if (e.type === 'param') continue;
       const key = `${source}\u0000${e.id}`;
       if (this.seen.has(key)) { this.stats.duplicates++; continue; }
       this.seen.set(key, e.beat);
@@ -547,7 +620,7 @@ export class NotesInbox {
       this.pendingControls = this.pendingControls.map((c, i) => ({ c, i }))
         .sort((a, b) => a.c.event.beat - b.c.event.beat || a.i - b.i).map(x => x.c);
     }
-    return added;
+    return tookParams.length ? [...added, ...tookParams] : added;
   }
 
   /** Hand out (and remove) every waiting slot or chord-pad change whose beat `due(beat)` accepts, in beat order. */
@@ -575,7 +648,7 @@ export class NotesInbox {
       else { this.seen.delete(`${source}\u0000${c.event.id}`); dropped++; }
     }
     this.pendingControls = keepControls;
-    return dropped;
+    return dropped + this.params.off(source, atBeat);
   }
 
   /** Hand out (and remove) every waiting event whose start beat `due(beat)` accepts, in start order. */
@@ -599,8 +672,8 @@ export class NotesInbox {
     for (const [id, end] of this.seen) if (end < beat - keepBeats) this.seen.delete(id);
   }
 
-  /** Forget everything (events, ids, routes stay). */
-  clear(): void { this.pending = []; this.pendingControls = []; this.seen.clear(); }
+  /** Forget everything (events, ids, param lanes; routes stay). */
+  clear(): void { this.pending = []; this.pendingControls = []; this.seen.clear(); this.params.clear(); }
 }
 
 function stableSort(events: WireNote[]): WireNote[] {

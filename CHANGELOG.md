@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0] - 2026-11-20
+
+For LUPA's knob passes (Peter, 2026-11-20: "build knob passes"; the Song Looper spec's control automation, decision 3).
+No change to any note stream; the contract stays v1. A new control type, which a receiver from before refuses with its
+message (`bad type`): an instrument sends `param` in a `played` message of its own (never with its notes), and LUPA
+sends param controls to that instrument only.
+
+- Contract: `ParamEvent` (`type: 'param'`, id, beat, `param` (the instrument's stable id for a knob, 1–`MAX_PARAM_ID`
+  of letters, digits, `.`, `-`, `_`), `value` (0–1 along the knob's travel)). Played: a hand move, with `label` and
+  `text` (what the player sees, 1–`MAX_PARAM_LABEL`) and `from` (the value before the move). As a control: set at the
+  beat, with an optional `glide` (beats, at most `MAX_PARAM_GLIDE_BEATS`) from the point before. A `ControlEvent`, so
+  `controlEventError` / `playedEventError` check it and `parseNotesMessage` copies it.
+- `ParamLanes`: an instrument's side of param controls. Idempotent by source and id; `off(source, atBeat)`;
+  `hand(param)` drops what waits for a knob moved by hand (your hand wins); `values(beat)` gives each knob's value at
+  a beat (glides part-way), only those that changed. `NotesInbox.params` holds one: param controls go there, never to
+  `takeControls`; the inbox's `off` and `clear` reach it.
+
 ## [0.10.0] - 2026-11-12
 
 For LUPA's Mute and Solo (Peter, 2026-11-12: a long sample from a muted pass kept playing to its end). No change to

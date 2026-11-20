@@ -128,15 +128,23 @@ type NotesMessage =
   `offsetBeats`), to LUCY only. LUPA announces each lap ahead with a `lap` control (beat, `lengthBeats`), so an armed
   LUCY records it.
 
+- **Knobs (0.11.0).** LUPA's knob passes: an instrument reports a knob or slider moved by hand as a `param` in
+  `played` (its stable `param` id, `value` 0–1 along the knob's travel, `label` and `text` as the player sees them,
+  `from` the value before the move), in a message of its own, only for hand moves (never a preset, another source or
+  a replay), rate-limited and without repeats. LUPA sends the curve back as `param` controls (set at the beat; `glide`
+  beats from the point before for a sweep). `NotesInbox.params` (a `ParamLanes`) keeps them: `values(beat)` gives each
+  knob's value as you play, `hand(param)` drops what waits for a knob the player grabbed (your hand wins).
+
 ```ts
 type PlayedEvent =
   | { type: 'note'; id: string; beat: number; on: boolean; note: number; velocity?: number; slice?: number }
   | { type: 'slot'; id: string; beat: number; slot: number }
   | { type: 'chordPad'; id: string; beat: number; pad: number | null }
   | { type: 'take'; id: string; beat: number; take: string; lengthBeats: number; gain?: number; offsetBeats?: number }
-  | { type: 'lap'; id: string; beat: number; lengthBeats: number };
+  | { type: 'lap'; id: string; beat: number; lengthBeats: number }
+  | { type: 'param'; id: string; beat: number; param: string; value: number; label?: string; text?: string; from?: number; glide?: number };
 // { v: 1; kind: 'played'; source; events: PlayedEvent[] }  instrument -> Studio
-// { v: 1; kind: 'controls'; source; events: (slot | chordPad | take | lap)[] }  Looper -> instrument
+// { v: 1; kind: 'controls'; source; events: (slot | chordPad | take | lap | param)[] }  Looper -> instrument
 ```
 
 ### The Bass rule
