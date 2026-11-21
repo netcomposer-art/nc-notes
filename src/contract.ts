@@ -15,6 +15,8 @@
  *    chord-pad changes), each stamped with the beat the player heard. The Song Looper records it. `controls` (0.6.0)
  *    sends recorded slot and chord-pad changes back, ahead of time, like notes.
  *  - `param` (0.11.0) is a knob or slider: played, moved by hand; as a control, set at a beat (LUPA's knob passes).
+ *  - 0.12.0 (LUPA's Wait): a played note may come from the instrument's own pattern (`pattern`), or be played while the
+ *    Studio's clock is stopped (`stopped`); `sound` says an instrument began to sound by itself (LUCY's mic).
  *
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
@@ -199,10 +201,52 @@ export interface PlayedNote {
    * display (LUPA's pass rows); a receiver never needs it to play the note.
    */
   name?: string;
+  /**
+   * Played by the instrument's own pattern or sequencer, not by hand (0.12.0: LUPA's pattern passes). On and off both
+   * carry it. Reported a little ahead of its beat (at most PATTERN_AHEAD_BEATS), with its off at the beat it ends, so
+   * a recorder knows the pattern is playing before it plays.
+   */
+  pattern?: true;
+  /**
+   * Played while the Studio's clock was stopped (0.12.0: LUPA's Wait starts the clock from it): `beat` is not a beat
+   * heard on a running clock. A recorder waiting for the first sound takes the time it got the report instead.
+   */
+  stopped?: true;
 }
 
-/** What `played` carries: notes, slot changes, chord-pad changes, takes and knob moves. */
-export type PlayedEvent = PlayedNote | ControlEvent;
+/**
+ * An instrument began to sound by itself (0.12.0, played only): LUCY's mic went past its threshold while armed for
+ * LUPA. Nothing to record or play: a recorder waiting for the first sound (LUPA's Wait) starts from it. `stopped`: as
+ * a note's.
+ */
+export interface SoundEvent {
+  type: 'sound';
+  id: string;
+  beat: number;
+  stopped?: true;
+}
+
+/** How far ahead of its beat an instrument may report a pattern note (0.12.0), in beats. */
+export const PATTERN_AHEAD_BEATS = 2;
+
+/** What `played` carries: notes, slot changes, chord-pad changes, takes, knob moves and sounds. */
+export type PlayedEvent = PlayedNote | SoundEvent | ControlEvent;
+
+/**
+ * The first sound in a played report (0.12.0, LUPA's Wait): its beat, whether the clock was stopped, and whether it
+ * came from the instrument's own pattern; null when the report holds none. A sound is a note-on or a `sound` event;
+ * a note-off, a knob move, a slot or chord-pad change, a take or a lap is not.
+ */
+export function playedSound(events: readonly PlayedEvent[]): { beat: number; stopped: boolean; pattern: boolean } | null {
+  let first: { beat: number; stopped: boolean; pattern: boolean } | null = null;
+  for (const e of events) {
+    const sound = (e.type === 'note' && e.on) || e.type === 'sound';
+    if (!sound) continue;
+    const s = { beat: e.beat, stopped: e.stopped === true, pattern: e.type === 'note' && e.pattern === true };
+    if (!first || s.beat < first.beat) first = s;
+  }
+  return first;
+}
 
 
 /** A source playing a target, and how: the role (chord, root, top) and, for root, an octave (C3 = 48 is octave 3). */
@@ -370,10 +414,19 @@ const isLabel = (x: unknown): boolean => typeof x === 'string' && x.length > 0 &
 /** Why `x` is not a valid played event, or null when it is. */
 export function playedEventError(x: unknown): string | null {
   if (!isObject(x)) return 'not an object';
+  if (x.type === 'sound') {
+    if (!isId(x.id)) return 'bad id';
+    if (!finite(x.beat)) return 'bad beat';
+    if (x.stopped !== undefined && x.stopped !== true) return 'stopped must be true when present';
+    return null;
+  }
   if (x.type !== 'note') return controlEventError(x);
   if (!isId(x.id)) return 'bad id';
   if (!finite(x.beat)) return 'bad beat';
   if (typeof x.on !== 'boolean') return 'on must be true or false';
+  if (x.pattern !== undefined && x.pattern !== true) return 'pattern must be true when present';
+  if (x.stopped !== undefined && x.stopped !== true) return 'stopped must be true when present';
+  if (x.pattern === true && x.stopped === true) return 'a pattern note plays on a running clock';
   if (!Number.isInteger(x.note) || (x.note as number) < 0 || (x.note as number) > 127) return 'note must be a whole number 0–127';
   if (x.on) {
     if (!finite(x.velocity) || x.velocity <= 0 || x.velocity > 1) return 'velocity must be above 0, at most 1';
@@ -483,11 +536,14 @@ const copyControl = (e: ControlEvent): ControlEvent =>
   : { type: 'chordPad', id: e.id, beat: e.beat, pad: e.pad };
 
 const copyPlayed = (e: PlayedEvent): PlayedEvent =>
-  e.type !== 'note' ? copyControl(e) : {
+  e.type === 'sound' ? { type: 'sound', id: e.id, beat: e.beat, ...(e.stopped === true ? { stopped: true } : {}) }
+  : e.type !== 'note' ? copyControl(e) : {
     type: 'note', id: e.id, beat: e.beat, on: e.on, note: e.note,
     ...(e.on ? { velocity: e.velocity } : {}),
     ...(e.on && e.slice !== undefined ? { slice: e.slice } : {}),
     ...(e.on && e.name !== undefined ? { name: e.name } : {}),
+    ...(e.pattern === true ? { pattern: true } : {}),
+    ...(e.stopped === true ? { stopped: true } : {}),
   };
 
 /**
