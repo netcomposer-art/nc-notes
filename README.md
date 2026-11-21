@@ -134,10 +134,16 @@ type NotesMessage =
   a replay), rate-limited and without repeats. LUPA sends the curve back as `param` controls (set at the beat; `glide`
   beats from the point before for a sweep). `NotesInbox.params` (a `ParamLanes`) keeps them: `values(beat)` gives each
   knob's value as you play, `hand(param)` drops what waits for a knob the player grabbed (your hand wins).
+- **Wait (0.12.0).** LUPA's Wait starts a jam on the first sound from any instrument. A played note may carry
+  `pattern: true` (the instrument's own pattern or sequencer played it, reported up to `PATTERN_AHEAD_BEATS` ahead,
+  with its off; LUPA records it as a pattern pass) or `stopped: true` (played while the Studio's clock was stopped:
+  its beat means nothing). `sound` (`{ type: 'sound'; id; beat; stopped? }`, played only) says an instrument began
+  to sound by itself (LUCY's mic past its threshold). `playedSound(events)` finds a report's first sound.
 
 ```ts
 type PlayedEvent =
-  | { type: 'note'; id: string; beat: number; on: boolean; note: number; velocity?: number; slice?: number }
+  | { type: 'note'; id: string; beat: number; on: boolean; note: number; velocity?: number; slice?: number; pattern?: true; stopped?: true }
+  | { type: 'sound'; id: string; beat: number; stopped?: true }
   | { type: 'slot'; id: string; beat: number; slot: number }
   | { type: 'chordPad'; id: string; beat: number; pad: number | null }
   | { type: 'take'; id: string; beat: number; take: string; lengthBeats: number; gain?: number; offsetBeats?: number }

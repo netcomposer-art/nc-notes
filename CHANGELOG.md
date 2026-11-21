@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0] - 2026-11-21
+
+For LUPA's Wait start (Peter, 2026-11-21: "Build it"): Jam waits for the first sound from any instrument, and the
+Rhythm's and the Bass's patterns become pattern passes. No change to any note stream; the contract stays v1. A
+receiver from before drops the new fields and refuses `sound` with its message (`bad type`).
+
+- Contract: `PlayedNote.pattern` (true: the instrument's own pattern played it; on and off; reported at most
+  `PATTERN_AHEAD_BEATS` ahead) and `PlayedNote.stopped` (true: played while the Studio's clock was stopped; never with
+  `pattern`). `SoundEvent` (`type: 'sound'`, id, beat, optional `stopped`): an instrument began to sound by itself
+  (LUCY's mic past its threshold); played only, never a control.
+- `playedSound(events)`: a played report's first sound (a note-on or a `sound`), its beat and whether it was stopped
+  or from a pattern; null when there is none.
+
 ## [0.11.0] - 2026-11-20
 
 For LUPA's knob passes (Peter, 2026-11-20: "build knob passes"; the Song Looper spec's control automation, decision 3).
