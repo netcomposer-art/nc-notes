@@ -135,7 +135,8 @@ export interface LapEvent {
 
 /**
  * Where a voice pass is (0.13.0). Played (recorder → LUPA): `ask` (record the next whole loop as a voice pass),
- * `cancel`, `recording` (the take so far, `peaks` across the whole loop, for LUPA's live row), `quiet` (the loop never
+ * `cancel`, `recording` (the take so far, for LUPA's live row: `peaks` are the loop's MAX_TAKE_PEAKS points from its
+ * start, as many as have been recorded), `quiet` (the loop never
  * got past the mic threshold: nothing is kept), `undo` (take `take` out of LUPA again). As a control (LUPA → that
  * recorder): `armed` (it records from `beat` for `lengthBeats`, as pass `pass`; it may come unasked: LUPA's "+ Voice"),
  * `cancel`, `added` (take `take` is pass `pass` now), `undone`.
@@ -158,7 +159,10 @@ export interface VoiceEvent {
   pass?: number;
   /** `added`, `undo`, `undone`: the take, as in a TakeEvent. */
   take?: string;
-  /** `recording`: the take's loudness so far across the whole loop, each 0–1, at most MAX_TAKE_PEAKS values. */
+  /**
+   * `recording`: the take's loudness so far, each 0–1: the loop's MAX_TAKE_PEAKS points from its start, as many as have
+   * been recorded (64 of them: half the loop).
+   */
   peaks?: number[];
 }
 
