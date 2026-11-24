@@ -17,6 +17,8 @@
  *  - `param` (0.11.0) is a knob or slider: played, moved by hand; as a control, set at a beat (LUPA's knob passes).
  *  - 0.12.0 (LUPA's Wait): a played note may come from the instrument's own pattern (`pattern`), or be played while the
  *    Studio's clock is stopped (`stopped`); `sound` says an instrument began to sound by itself (LUCY's mic).
+ *  - 0.13.0 (the voice pass): `voice` asks for, answers and reports one voice pass, both ways between a recorder (LUCY)
+ *    and LUPA: a played `voice` from the recorder, a `voice` control from LUPA to that recorder.
  *
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
@@ -119,8 +121,9 @@ export interface TakeEvent {
 }
 
 /**
- * A lap (0.7.0): LUPA announces each lap ahead, from `beat` for `lengthBeats`, so a recorder armed for it (LUCY) takes
- * the lap. Sent as a control to that recorder only; an `off` drops the laps not begun.
+ * A lap (0.7.0): LUPA announces each lap ahead, from `beat` for `lengthBeats`. Sent as a control to a recorder (LUCY)
+ * only; an `off` drops the laps not begun. 0.13.0: sent for every lap while LUPA jams (Play or Record), so a recorder
+ * knows the jam is running and where its loop starts; nothing records a lap by itself any more (a `voice` asks).
  */
 export interface LapEvent {
   type: 'lap';
@@ -129,6 +132,38 @@ export interface LapEvent {
   /** Above 0, at most MAX_TAKE_BEATS. */
   lengthBeats: number;
 }
+
+/**
+ * Where a voice pass is (0.13.0). Played (recorder → LUPA): `ask` (record the next whole loop as a voice pass),
+ * `cancel`, `recording` (the take so far, `peaks` across the whole loop, for LUPA's live row), `quiet` (the loop never
+ * got past the mic threshold: nothing is kept), `undo` (take `take` out of LUPA again). As a control (LUPA → that
+ * recorder): `armed` (it records from `beat` for `lengthBeats`, as pass `pass`; it may come unasked: LUPA's "+ Voice"),
+ * `cancel`, `added` (take `take` is pass `pass` now), `undone`.
+ */
+export type VoiceState = 'ask' | 'armed' | 'recording' | 'cancel' | 'quiet' | 'added' | 'undo' | 'undone';
+export const VOICE_STATES: readonly VoiceState[] = ['ask', 'armed', 'recording', 'cancel', 'quiet', 'added', 'undo', 'undone'];
+
+/**
+ * A voice pass (0.13.0, Peter 2026-11-24): LUCY's mic for one whole LUPA loop, then LUPA goes back to Play. `beat` is
+ * the loop's first beat (`armed`, `recording`, `added`) or the beat it was said on (0 with the clock stopped).
+ */
+export interface VoiceEvent {
+  type: 'voice';
+  id: string;
+  beat: number;
+  state: VoiceState;
+  /** `armed`: the loop's length. Above 0, at most MAX_TAKE_BEATS. */
+  lengthBeats?: number;
+  /** `armed`, `added`: the pass number it gets (1–MAX_VOICE_PASS). */
+  pass?: number;
+  /** `added`, `undo`, `undone`: the take, as in a TakeEvent. */
+  take?: string;
+  /** `recording`: the take's loudness so far across the whole loop, each 0–1, at most MAX_TAKE_PEAKS values. */
+  peaks?: number[];
+}
+
+/** The highest pass number a voice event may carry. */
+export const MAX_VOICE_PASS = 9999;
 
 /** The longest take in beats (LUPA's longest lap: 16 bars at 240 BPM caps at a minute, 64 bars of headroom). */
 export const MAX_TAKE_BEATS = 256;
@@ -177,7 +212,7 @@ export interface ParamEvent {
 }
 
 /** A recorded change that is not a note: what `controls` carries. */
-export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent | ParamEvent;
+export type ControlEvent = SlotEvent | ChordPadEvent | TakeEvent | LapEvent | ParamEvent | VoiceEvent;
 
 /**
  * A key or pad played by hand, reported by the instrument (0.6.0). `on` starts the note and `off` ends it; both carry
@@ -394,6 +429,19 @@ export function controlEventError(x: unknown): string | null {
     if (!finite(x.lengthBeats) || x.lengthBeats <= 0 || x.lengthBeats > MAX_TAKE_BEATS) return `lengthBeats must be above 0, at most ${MAX_TAKE_BEATS}`;
     return null;
   }
+  if (x.type === 'voice') {
+    if (typeof x.state !== 'string' || !VOICE_STATES.includes(x.state as VoiceState)) return 'bad voice state';
+    if (x.lengthBeats !== undefined && (!finite(x.lengthBeats) || x.lengthBeats <= 0 || x.lengthBeats > MAX_TAKE_BEATS))
+      return `lengthBeats must be above 0, at most ${MAX_TAKE_BEATS}`;
+    if (x.state === 'armed' && x.lengthBeats === undefined) return 'an armed voice pass needs lengthBeats';
+    if (x.pass !== undefined && !(Number.isInteger(x.pass) && (x.pass as number) >= 1 && (x.pass as number) <= MAX_VOICE_PASS))
+      return `pass must be a whole number 1–${MAX_VOICE_PASS}`;
+    if (x.take !== undefined && !isId(x.take)) return 'bad take';
+    if ((x.state === 'undo' || x.state === 'undone') && x.take === undefined) return 'undo needs its take';
+    if (x.peaks !== undefined && !(Array.isArray(x.peaks) && x.peaks.length <= MAX_TAKE_PEAKS && x.peaks.every((v) => finite(v) && v >= 0 && v <= 1)))
+      return `peaks must be at most ${MAX_TAKE_PEAKS} values 0–1`;
+    return null;
+  }
   if (x.type === 'param') {
     if (typeof x.param !== 'string' || !PARAM_ID.test(x.param)) return `param must be 1–${MAX_PARAM_ID} letters, digits, '.', '-' or '_'`;
     if (!unit(x.value)) return 'value must be 0–1';
@@ -526,6 +574,13 @@ const copyControl = (e: ControlEvent): ControlEvent =>
     ...(e.peaks === undefined ? {} : { peaks: [...e.peaks] }),
   }
   : e.type === 'lap' ? { type: 'lap', id: e.id, beat: e.beat, lengthBeats: e.lengthBeats }
+  : e.type === 'voice' ? {
+    type: 'voice', id: e.id, beat: e.beat, state: e.state,
+    ...(e.lengthBeats === undefined ? {} : { lengthBeats: e.lengthBeats }),
+    ...(e.pass === undefined ? {} : { pass: e.pass }),
+    ...(e.take === undefined ? {} : { take: e.take }),
+    ...(e.peaks === undefined ? {} : { peaks: [...e.peaks] }),
+  }
   : e.type === 'param' ? {
     type: 'param', id: e.id, beat: e.beat, param: e.param, value: e.value,
     ...(e.label === undefined ? {} : { label: e.label }),
@@ -582,7 +637,7 @@ export const auditionMessage = (source: string, events: WireNote[], holdSec: num
   ({ v: NOTES_VERSION, kind: 'audition', source, events, holdSec });
 /** What an instrument played by hand (0.6.0). */
 export const playedMessage = (source: string, events: PlayedEvent[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'played', source, events });
-/** Slot, chord-pad, take, lap and param changes to make at their beats (0.6.0; param 0.11.0). */
+/** Slot, chord-pad, take, lap, param and voice changes to make at their beats (0.6.0; param 0.11.0; voice 0.13.0). */
 export const controlsMessage = (source: string, events: ControlEvent[]): NotesMessage => ({ v: NOTES_VERSION, kind: 'controls', source, events });
 
 /**

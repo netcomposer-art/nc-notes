@@ -139,6 +139,11 @@ type NotesMessage =
   with its off; LUPA records it as a pattern pass) or `stopped: true` (played while the Studio's clock was stopped:
   its beat means nothing). `sound` (`{ type: 'sound'; id; beat; stopped? }`, played only) says an instrument began
   to sound by itself (LUCY's mic past its threshold). `playedSound(events)` finds a report's first sound.
+- **Voice pass (0.13.0).** One whole LUPA loop from LUCY's mic, then LUPA goes back to Play. `voice`
+  (`{ type: 'voice'; id; beat; state; lengthBeats?; pass?; take?; peaks? }`) goes both ways: played from LUCY
+  (`ask`, `cancel`, `recording` with the take's `peaks` so far, `quiet`, `undo`) and as a control from LUPA to that
+  LUCY (`armed` with the loop's `beat` and `lengthBeats` and the `pass` it becomes, `cancel`, `added`, `undone`). LUPA
+  now announces every `lap` while it jams, Play or Record, so LUCY knows the jam runs and where the loop starts.
 
 ```ts
 type PlayedEvent =
