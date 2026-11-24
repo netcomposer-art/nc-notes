@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0] - 2026-11-24
+
+For the voice pass (Peter, 2026-11-24: "build w your recs"): LUCY's Record, while LUPA jams, records the next whole
+loop as a voice pass and LUPA goes back to Play after it; LUPA's "+ Voice" does the same. No change to any note
+stream; the contract stays v1. A new control type, which a receiver from before refuses with its message (`bad type`).
+
+- Contract: `VoiceEvent` (`type: 'voice'`, id, beat, `state`: `VOICE_STATES`, with `lengthBeats`, `pass` (1–
+  `MAX_VOICE_PASS`), `take` and `peaks` as the state needs). Played from the recorder: `ask`, `cancel`, `recording`,
+  `quiet`, `undo`; as a control from LUPA: `armed` (needs `lengthBeats`), `cancel`, `added`, `undone`. `undo` and
+  `undone` need their `take`. A `ControlEvent`, so `controlEventError` / `playedEventError` check it and
+  `parseNotesMessage` copies it. Never a sound (`playedSound`).
+- Docs: `lap` is announced for every lap while LUPA jams (Play or Record); a recorder no longer records a lap by
+  itself.
+
 ## [0.12.0] - 2026-11-21
 
 For LUPA's Wait start (Peter, 2026-11-21: "Build it"): Jam waits for the first sound from any instrument, and the
