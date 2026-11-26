@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.14.0] - 2026-11-26
+
+For LUPA's Normalize (Peter, 2026-11-26: "I like your recommendations"): a voice pass can play at the recorder's
+Normalize level, every voice pass the same loudness. No change to any note stream; the contract stays v1. A receiver
+from before drops the new fields (the take plays as recorded).
+
+- Contract: `TakeEvent.normalize` (controls: true plays the take at its Normalize level, on top of `gain`) and
+  `TakeEvent.normalizeDb` (played: the Normalize gain the recorder measured, dB, `MIN_TAKE_NORMALIZE_DB`–
+  `MAX_TAKE_NORMALIZE_DB`, −60 to +24). Both checked and copied by `parseNotesMessage`.
+
 ## [0.13.0] - 2026-11-24
 
 For the voice pass (Peter, 2026-11-24: "build w your recs"): LUCY's Record, while LUPA jams, records the next whole
