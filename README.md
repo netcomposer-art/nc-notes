@@ -144,6 +144,9 @@ type NotesMessage =
   (`ask`, `cancel`, `recording` with the take's `peaks` so far, `quiet`, `undo`) and as a control from LUPA to that
   LUCY (`armed` with the loop's `beat` and `lengthBeats` and the `pass` it becomes, `cancel`, `added`, `undone`). LUPA
   now announces every `lap` while it jams, Play or Record, so LUCY knows the jam runs and where the loop starts.
+- **Normalize (0.14.0).** A `take` control's `normalize: true` plays the take at the recorder's Normalize level (LUCY:
+  −16 dBFS RMS, peaks under −3 dBFS, at most +24 dB) on top of `gain`; a played take's `normalizeDb` says the gain
+  measured, for LUPA's readout.
 
 ```ts
 type PlayedEvent =

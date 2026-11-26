@@ -19,6 +19,8 @@
  *    Studio's clock is stopped (`stopped`); `sound` says an instrument began to sound by itself (LUCY's mic).
  *  - 0.13.0 (the voice pass): `voice` asks for, answers and reports one voice pass, both ways between a recorder (LUCY)
  *    and LUPA: a played `voice` from the recorder, a `voice` control from LUPA to that recorder.
+ *  - 0.14.0 (LUPA's Normalize): a `take` control may ask for the take at its Normalize level (`normalize`), and a played
+ *    take says the Normalize gain the recorder measured for it (`normalizeDb`).
  *
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
@@ -118,7 +120,21 @@ export interface TakeEvent {
    * voice pass rows draw it); nothing needs it to play.
    */
   peaks?: number[];
+  /**
+   * Controls only (0.14.0, LUPA's Normalize): true plays the take at its Normalize level, the recorder's own standard
+   * (LUCY: to −16 dBFS RMS, a peak never past −3 dBFS, at most +24 dB), on top of `gain`. Absent: as recorded.
+   */
+  normalize?: boolean;
+  /**
+   * Played only (0.14.0): the Normalize gain the recorder measured for this take, dB (MIN_TAKE_NORMALIZE_DB–
+   * MAX_TAKE_NORMALIZE_DB), for LUPA's readout and waveform. Nothing needs it to play.
+   */
+  normalizeDb?: number;
 }
+
+/** A take's Normalize gain, dB: at most +24 (a near-silent take stays quiet); a hot take is brought down. */
+export const MAX_TAKE_NORMALIZE_DB = 24;
+export const MIN_TAKE_NORMALIZE_DB = -60;
 
 /**
  * A lap (0.7.0): LUPA announces each lap ahead, from `beat` for `lengthBeats`. Sent as a control to a recorder (LUCY)
@@ -427,6 +443,9 @@ export function controlEventError(x: unknown): string | null {
     if (x.offsetBeats !== undefined && (!finite(x.offsetBeats) || x.offsetBeats < 0 || x.offsetBeats >= x.lengthBeats)) return 'offsetBeats must be from 0, below lengthBeats';
     if (x.peaks !== undefined && !(Array.isArray(x.peaks) && x.peaks.length <= MAX_TAKE_PEAKS && x.peaks.every((v) => finite(v) && v >= 0 && v <= 1)))
       return `peaks must be at most ${MAX_TAKE_PEAKS} values 0–1`;
+    if (x.normalize !== undefined && typeof x.normalize !== 'boolean') return 'normalize must be true or false';
+    if (x.normalizeDb !== undefined && (!finite(x.normalizeDb) || x.normalizeDb < MIN_TAKE_NORMALIZE_DB || x.normalizeDb > MAX_TAKE_NORMALIZE_DB))
+      return `normalizeDb must be ${MIN_TAKE_NORMALIZE_DB}–${MAX_TAKE_NORMALIZE_DB}`;
     return null;
   }
   if (x.type === 'lap') {
@@ -576,6 +595,8 @@ const copyControl = (e: ControlEvent): ControlEvent =>
     ...(e.gain === undefined ? {} : { gain: e.gain }),
     ...(e.offsetBeats === undefined ? {} : { offsetBeats: e.offsetBeats }),
     ...(e.peaks === undefined ? {} : { peaks: [...e.peaks] }),
+    ...(e.normalize === undefined ? {} : { normalize: e.normalize }),
+    ...(e.normalizeDb === undefined ? {} : { normalizeDb: e.normalizeDb }),
   }
   : e.type === 'lap' ? { type: 'lap', id: e.id, beat: e.beat, lengthBeats: e.lengthBeats }
   : e.type === 'voice' ? {
