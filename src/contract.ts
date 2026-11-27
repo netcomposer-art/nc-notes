@@ -21,6 +21,8 @@
  *    and LUPA: a played `voice` from the recorder, a `voice` control from LUPA to that recorder.
  *  - 0.14.0 (LUPA's Normalize): a `take` control may ask for the take at its Normalize level (`normalize`), and a played
  *    take says the Normalize gain the recorder measured for it (`normalizeDb`).
+ *  - 0.15.0 (one pass per pattern): a pattern note may name the pattern as written (`form`), so a recorder knows a
+ *    lap whose hits differ only by chance rolls or odd track lengths is still the same pattern.
  *
  * Messages are plain objects (structured-clonable). A receiver checks every message with parseNotesMessage(), which
  * copies it into fresh objects, so nothing from another frame is kept by reference.
@@ -263,6 +265,12 @@ export interface PlayedNote {
    */
   pattern?: true;
   /**
+   * The pattern as written (0.15.0; pattern notes only): 1–MAX_PATTERN_FORM characters that stay the same while the
+   * pattern does (its steps, chances, lengths, mutes, swing) and change when it is edited. Two laps with the same form
+   * are the same pattern even when their hits differ (a chance step, a track of another length). Opaque: compare only.
+   */
+  form?: string;
+  /**
    * Played while the Studio's clock was stopped (0.12.0: LUPA's Wait starts the clock from it): `beat` is not a beat
    * heard on a running clock. A recorder waiting for the first sound takes the time it got the report instead.
    */
@@ -280,6 +288,9 @@ export interface SoundEvent {
   beat: number;
   stopped?: true;
 }
+
+/** The longest pattern `form` (0.15.0), in characters. */
+export const MAX_PATTERN_FORM = 64;
 
 /** How far ahead of its beat an instrument may report a pattern note (0.12.0), in beats. */
 export const PATTERN_AHEAD_BEATS = 2;
@@ -498,6 +509,8 @@ export function playedEventError(x: unknown): string | null {
   if (x.pattern !== undefined && x.pattern !== true) return 'pattern must be true when present';
   if (x.stopped !== undefined && x.stopped !== true) return 'stopped must be true when present';
   if (x.pattern === true && x.stopped === true) return 'a pattern note plays on a running clock';
+  if (x.form !== undefined && (x.pattern !== true || typeof x.form !== 'string' || !x.form.length || x.form.length > MAX_PATTERN_FORM))
+    return `form is 1–${MAX_PATTERN_FORM} characters, on a pattern note only`;
   if (!Number.isInteger(x.note) || (x.note as number) < 0 || (x.note as number) > 127) return 'note must be a whole number 0–127';
   if (x.on) {
     if (!finite(x.velocity) || x.velocity <= 0 || x.velocity > 1) return 'velocity must be above 0, at most 1';
@@ -623,6 +636,7 @@ const copyPlayed = (e: PlayedEvent): PlayedEvent =>
     ...(e.on && e.slice !== undefined ? { slice: e.slice } : {}),
     ...(e.on && e.name !== undefined ? { name: e.name } : {}),
     ...(e.pattern === true ? { pattern: true } : {}),
+    ...(e.pattern === true && e.form !== undefined ? { form: e.form } : {}),
     ...(e.stopped === true ? { stopped: true } : {}),
   };
 
