@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.0] - 2026-11-27
+
+For LUPA's pattern passes (Peter, 2026-11-27: "one pass per pattern"): PETRA's "Warehouse" has a chance step, so each
+lap's hits differ and LUPA made a pass every lap. A pattern note can now name the pattern as written, so a recorder
+knows those laps are the same pattern. No change to any note stream; the contract stays v1. A receiver from before
+drops the field (and compares notes, as before).
+
+- Contract: `PlayedNote.form` (pattern notes only, 1–`MAX_PATTERN_FORM` (64) characters, opaque: compare only).
+  Checked and copied by `parseNotesMessage`.
+
 ## [0.14.0] - 2026-11-26
 
 For LUPA's Normalize (Peter, 2026-11-26: "I like your recommendations"): a voice pass can play at the recorder's

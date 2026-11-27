@@ -147,6 +147,8 @@ type NotesMessage =
 - **Normalize (0.14.0).** A `take` control's `normalize: true` plays the take at the recorder's Normalize level (LUCY:
   −16 dBFS RMS, peaks under −3 dBFS, at most +24 dB) on top of `gain`; a played take's `normalizeDb` says the gain
   measured, for LUPA's readout.
+- **Pattern form (0.15.0).** A pattern note may carry `form`, the pattern as written (steps, chances, lengths, mutes,
+  swing). Same form, same pattern, even when a chance step or an odd track length makes the hits differ lap to lap.
 
 ```ts
 type PlayedEvent =
